@@ -107,7 +107,7 @@ export function Dashboard({ flights, aircraftById, onAddFlight }: Props) {
 function CurrencyRow({ label, ok, detail }: { label: string; ok: boolean; detail: string }) {
   return (
     <div className="rounded-lg border border-[var(--border)] p-3">
-      <div className="mb-1 flex items-center justify-between">
+      <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="text-sm font-medium text-[var(--text)]">{label}</span>
         <Badge tone={ok ? "success" : "warning"}>{ok ? "Current" : "Not current"}</Badge>
       </div>

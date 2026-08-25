@@ -58,6 +58,27 @@ export function formatHours(hours: number): string {
   return hours.toFixed(1)
 }
 
+export interface MonthTotals {
+  hours: number
+  pic: number
+  landings: number
+}
+
+export function computeMonthTotals(flights: Flight[], now: Date = new Date()): MonthTotals {
+  const monthKey = now.toISOString().slice(0, 7) // yyyy-mm
+  return flights
+    .filter((f) => f.date.slice(0, 7) === monthKey)
+    .reduce<MonthTotals>(
+      (acc, f) => {
+        acc.hours += f.totalTime
+        acc.pic += f.pic
+        acc.landings += f.dayLandings + f.nightLandings
+        return acc
+      },
+      { hours: 0, pic: 0, landings: 0 },
+    )
+}
+
 // ---------------------------------------------------------------------------
 // Currency & Recency Intelligence Engine (CARs-based)
 //

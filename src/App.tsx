@@ -58,6 +58,7 @@ export default function App() {
             aircraftById={store.aircraftById}
             profile={store.profile}
             onAddFlight={() => setFlightModal({})}
+            onViewAllFlights={() => setTab("logbook")}
           />
         )}
 

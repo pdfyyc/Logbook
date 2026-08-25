@@ -19,16 +19,16 @@
 }
 
 :root[data-theme="dark"] {
-  --bg: #0b1220;
-  --bg-elevated: #121a2b;
-  --bg-inset: #0e1626;
-  --border: #22304a;
-  --text: #e7ecf5;
-  --text-muted: #8ea0bd;
-  --accent: #38bdf8;
-  --accent-soft: rgba(56, 189, 248, 0.12);
-  --brand-from: #0b1220;
-  --brand-to: #0c4a6e;
+  --bg: #090c13;
+  --bg-elevated: #151b28;
+  --bg-inset: #10141f;
+  --border: #262e42;
+  --text: #f2f4f9;
+  --text-muted: #8b96ac;
+  --accent: #4f8ef7;
+  --accent-soft: rgba(79, 142, 247, 0.14);
+  --brand-from: #3b82f6;
+  --brand-to: #f97316;
   color-scheme: dark;
 }
 

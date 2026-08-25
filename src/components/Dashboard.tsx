@@ -1,60 +1,120 @@
 import { useState } from "react"
-import { ChevronDown, ChevronUp, Clock, Moon, MoveRight, PlaneTakeoff, Radar, User } from "lucide-react"
+import {
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Moon,
+  MoveRight,
+  Plane,
+  PlaneTakeoff,
+  Radar,
+  Rocket,
+  User,
+} from "lucide-react"
 import type { Aircraft, Flight, PilotProfile } from "../types"
-import { computeCarsCurrency, computeTotals, formatHours, type CurrencyItem, type CurrencyLevel } from "../lib/calc"
+import {
+  computeCarsCurrency,
+  computeMonthTotals,
+  computeTotals,
+  formatHours,
+  type CurrencyItem,
+  type CurrencyLevel,
+} from "../lib/calc"
 import { StatCard } from "./ui/StatCard"
 import { Card } from "./ui/Card"
 import { Badge } from "./ui/Badge"
+import { Button } from "./ui/Button"
+import { Avatar } from "./ui/Avatar"
 
 interface Props {
   flights: Flight[]
   aircraftById: Map<string, Aircraft>
   profile: PilotProfile
   onAddFlight: () => void
+  onViewAllFlights: () => void
 }
 
-export function Dashboard({ flights, aircraftById, profile, onAddFlight }: Props) {
+function formatShortDate(iso: string): string {
+  const d = new Date(iso + "T00:00:00")
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+}
+
+export function Dashboard({ flights, aircraftById, profile, onAddFlight, onViewAllFlights }: Props) {
   const totals = computeTotals(flights)
+  const month = computeMonthTotals(flights)
   const currency = computeCarsCurrency(flights, profile)
+  const name = profile.pilotName || "Pilot"
 
   const recent = flights
     .slice()
     .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 6)
-
-  if (flights.length === 0) {
-    return (
-      <div className="mx-auto flex max-w-md flex-col items-center gap-3 py-24 text-center">
-        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
-          <PlaneTakeoff size={22} />
-        </span>
-        <h2 className="text-lg font-semibold text-[var(--text)]">No flights logged yet</h2>
-        <p className="text-sm text-[var(--text-muted)]">
-          Add your first flight to start tracking hours, currency, and totals.
-        </p>
-        <button
-          onClick={onAddFlight}
-          className="mt-2 rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:brightness-110 cursor-pointer"
-        >
-          Log your first flight
-        </button>
-      </div>
-    )
-  }
+    .slice(0, 5)
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <StatCard label="Total time" value={formatHours(totals.totalTime)} icon={Clock} />
-        <StatCard label="PIC" value={formatHours(totals.pic)} icon={User} />
-        <StatCard label="Cross-country" value={formatHours(totals.crossCountry)} icon={MoveRight} />
-        <StatCard label="Night" value={formatHours(totals.night)} icon={Moon} />
-        <StatCard
-          label="Instrument"
-          value={formatHours(totals.actualInstrument + totals.simulatedInstrument)}
-          icon={Radar}
-        />
+      <div className="flex items-center gap-3">
+        <Avatar name={name} />
+        <div>
+          <p className="text-sm text-[var(--text-muted)]">Welcome,</p>
+          <h1 className="text-lg font-bold text-[var(--text)]">{name}</h1>
+        </div>
       </div>
+
+      <Button variant="gradient" pill className="w-full" onClick={onAddFlight}>
+        <Rocket size={16} /> New log entry
+      </Button>
+
+      {flights.length === 0 ? (
+        <Card className="mx-auto flex max-w-md flex-col items-center gap-3 px-4 py-16 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
+            <PlaneTakeoff size={22} />
+          </span>
+          <h2 className="text-lg font-semibold text-[var(--text)]">No flights logged yet</h2>
+          <p className="text-sm text-[var(--text-muted)]">
+            Add your first flight to start tracking hours, currency, and totals.
+          </p>
+        </Card>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <StatCard label="Total time" value={formatHours(totals.totalTime)} icon={Clock} />
+            <StatCard label="PIC" value={formatHours(totals.pic)} icon={User} />
+            <StatCard label="Cross-country" value={formatHours(totals.crossCountry)} icon={MoveRight} />
+            <StatCard label="Night" value={formatHours(totals.night)} icon={Moon} />
+            <StatCard
+              label="Instrument"
+              value={formatHours(totals.actualInstrument + totals.simulatedInstrument)}
+              icon={Radar}
+            />
+          </div>
+
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-bold text-[var(--text)]">Recent Flights</h3>
+              <button
+                onClick={onViewAllFlights}
+                className="text-xs font-medium text-[var(--accent)] cursor-pointer"
+              >
+                See all
+              </button>
+            </div>
+            <div className="space-y-2">
+              {recent.map((f) => (
+                <FlightRow key={f.id} flight={f} aircraft={aircraftById.get(f.aircraftId)} />
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-gradient-to-r from-[var(--brand-from)] to-[var(--brand-to)] p-4 text-white">
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/80">Flight totals</p>
+            <div className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1 text-sm font-semibold">
+              <span>This month: {formatHours(month.hours)} hrs</span>
+              <span>PIC: {formatHours(month.pic)} hrs</span>
+              <span>Landings: {month.landings}</span>
+            </div>
+          </div>
+        </>
+      )}
 
       <Card className="p-4">
         <div className="mb-3 flex items-baseline justify-between gap-2">
@@ -69,32 +129,40 @@ export function Dashboard({ flights, aircraftById, profile, onAddFlight }: Props
           ))}
         </div>
       </Card>
+    </div>
+  )
+}
 
-      <Card className="p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-[var(--text)]">Recent flights</h3>
+function FlightRow({ flight: f, aircraft: ac }: { flight: Flight; aircraft?: Aircraft }) {
+  const tags = [
+    f.night > 0 && "Night",
+    f.crossCountry > 0 && "XC",
+    f.actualInstrument + f.simulatedInstrument > 0 && "Inst",
+  ].filter((t): t is string => Boolean(t))
+
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-3">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
+        <Plane size={18} className="-rotate-45" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate text-sm font-semibold text-[var(--text)]">
+            {f.from || "—"} → {f.to || "—"}
+          </span>
+          <span className="shrink-0 font-mono text-sm font-semibold text-[var(--text)]">
+            {formatHours(f.totalTime)}h
+          </span>
         </div>
-        <div className="divide-y divide-[var(--border)]">
-          {recent.map((f) => {
-            const ac = aircraftById.get(f.aircraftId)
-            return (
-              <div key={f.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                <div className="min-w-0">
-                  <div className="font-medium text-[var(--text)]">
-                    {f.from || "—"} → {f.to || "—"}
-                  </div>
-                  <div className="truncate text-xs text-[var(--text-muted)]">
-                    {f.date} · {ac ? `${ac.tailNumber} (${ac.makeModel})` : "Unknown aircraft"}
-                  </div>
-                </div>
-                <div className="shrink-0 font-mono text-[var(--text)]">
-                  {formatHours(f.totalTime)}h
-                </div>
-              </div>
-            )
-          })}
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-[var(--text-muted)]">
+          <span>{formatShortDate(f.date)}</span>
+          <span>·</span>
+          <span>{ac ? ac.tailNumber : "Unknown aircraft"}</span>
+          {tags.map((t) => (
+            <Badge key={t}>{t}</Badge>
+          ))}
         </div>
-      </Card>
+      </div>
     </div>
   )
 }

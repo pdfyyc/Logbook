@@ -41,7 +41,7 @@ export function saveFlights(flights: Flight[]) {
 }
 
 export function loadTheme(): "light" | "dark" {
-  return read<"light" | "dark">(THEME_KEY, "light")
+  return read<"light" | "dark">(THEME_KEY, "dark")
 }
 
 export function saveTheme(theme: "light" | "dark") {

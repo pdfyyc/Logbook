@@ -1,9 +1,9 @@
-import { BookOpen, LayoutDashboard, Moon, Plane, Sun, UserCircle2 } from "lucide-react"
+import { BookOpen, Home, Moon, Plane, Sun, UserCircle2 } from "lucide-react"
 
 export type Tab = "dashboard" | "logbook" | "aircraft" | "profile"
 
-const tabs: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+const tabs: { id: Tab; label: string; icon: typeof Home }[] = [
+  { id: "dashboard", label: "Home", icon: Home },
   { id: "logbook", label: "Logbook", icon: BookOpen },
   { id: "aircraft", label: "Aircraft", icon: Plane },
   { id: "profile", label: "Profile", icon: UserCircle2 },
@@ -58,18 +58,27 @@ export function Nav({ active, onChange, theme, onToggleTheme }: Props) {
       </header>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-[var(--border)] bg-[var(--bg-elevated)]/95 backdrop-blur sm:hidden">
-        {tabs.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => onChange(id)}
-            className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs font-medium transition-colors cursor-pointer ${
-              active === id ? "text-[var(--accent)]" : "text-[var(--text-muted)]"
-            }`}
-          >
-            <Icon size={19} />
-            {label}
-          </button>
-        ))}
+        {tabs.map(({ id, label, icon: Icon }) => {
+          const isActive = active === id
+          return (
+            <button
+              key={id}
+              onClick={() => onChange(id)}
+              className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors cursor-pointer ${
+                isActive ? "text-[var(--accent)]" : "text-[var(--text-muted)]"
+              }`}
+            >
+              <span
+                className={`flex h-7 w-11 items-center justify-center rounded-full transition-colors ${
+                  isActive ? "bg-[var(--accent-soft)]" : ""
+                }`}
+              >
+                <Icon size={18} />
+              </span>
+              {label}
+            </button>
+          )
+        })}
       </nav>
     </>
   )

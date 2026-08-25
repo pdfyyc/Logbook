@@ -5,6 +5,7 @@ import { Card } from "./ui/Card"
 import { Field, Input, Select } from "./ui/Field"
 import { Badge } from "./ui/Badge"
 import { Button } from "./ui/Button"
+import { Avatar } from "./ui/Avatar"
 
 const medicalCategories: MedicalCategory[] = ["None", "Category 1", "Category 3", "Category 4"]
 
@@ -24,6 +25,17 @@ export function ProfileView({ profile, onUpdateProfile, onAddRating, onEditRatin
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-[var(--text)]">Pilot profile</h2>
       </div>
+
+      <Card className="flex items-center gap-4 p-4">
+        <Avatar name={profile.pilotName || "Pilot"} size={52} />
+        <Field label="Display name" className="flex-1">
+          <Input
+            value={profile.pilotName}
+            onChange={(e) => onUpdateProfile({ pilotName: e.target.value })}
+            placeholder="Captain Sarah Chen"
+          />
+        </Field>
+      </Card>
 
       <Card className="p-4">
         <div className="mb-3 flex items-center gap-2">

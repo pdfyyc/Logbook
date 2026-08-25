@@ -60,12 +60,14 @@ export interface Rating {
 export type RatingDraft = Omit<Rating, "id">
 
 export interface PilotProfile {
+  pilotName: string
   medicalCategory: MedicalCategory
   medicalExpiry: string // ISO date, "" = not set
   ratings: Rating[]
 }
 
 export const defaultPilotProfile: PilotProfile = {
+  pilotName: "",
   medicalCategory: "None",
   medicalExpiry: "",
   ratings: [],

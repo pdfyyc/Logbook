@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
+}
+
+:root {
+  --bg: #f5f7fa;
+  --bg-elevated: #ffffff;
+  --bg-inset: #eef1f6;
+  --border: #e2e5ec;
+  --text: #0f172a;
+  --text-muted: #5b6472;
+  --accent: #0369a1;
+  --accent-soft: #e0f2fe;
+  --brand-from: #0c4a6e;
+  --brand-to: #0369a1;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0b1220;
+  --bg-elevated: #121a2b;
+  --bg-inset: #0e1626;
+  --border: #22304a;
+  --text: #e7ecf5;
+  --text-muted: #8ea0bd;
+  --accent: #38bdf8;
+  --accent-soft: rgba(56, 189, 248, 0.12);
+  --brand-from: #0b1220;
+  --brand-to: #0c4a6e;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
+}
+
+/* Firefox number input arrows */
+input[type="number"] {
+  -moz-appearance: textfield;
+}

@@ -7,12 +7,12 @@ import { AircraftView } from "./components/AircraftView"
 import { ProfileView } from "./components/ProfileView"
 import { FlightFormModal } from "./components/FlightFormModal"
 import { AircraftFormModal } from "./components/AircraftFormModal"
-import { RatingFormModal } from "./components/RatingFormModal"
+import { QualificationFormModal } from "./components/QualificationFormModal"
 import { Button } from "./components/ui/Button"
 import { useLogbook } from "./lib/useLogbook"
 import { loadTheme, saveTheme, exportData, isLogbookExport } from "./lib/storage"
 import { downloadTextFile } from "./lib/csv"
-import type { Aircraft, Flight, Rating } from "./types"
+import type { Aircraft, Flight, Qualification } from "./types"
 
 export default function App() {
   const store = useLogbook()
@@ -21,7 +21,7 @@ export default function App() {
 
   const [flightModal, setFlightModal] = useState<null | { editing?: Flight }>(null)
   const [aircraftModal, setAircraftModal] = useState<null | { editing?: Aircraft }>(null)
-  const [ratingModal, setRatingModal] = useState<null | { editing?: Rating }>(null)
+  const [qualificationModal, setQualificationModal] = useState<null | { editing?: Qualification }>(null)
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -99,10 +99,10 @@ export default function App() {
           <ProfileView
             profile={store.profile}
             onUpdateProfile={store.updateProfile}
-            onAddRating={() => setRatingModal({})}
-            onEditRating={(r) => setRatingModal({ editing: r })}
-            onDeleteRating={(id) => {
-              if (window.confirm("Delete this rating/endorsement?")) store.deleteRating(id)
+            onAddQualification={() => setQualificationModal({})}
+            onEditQualification={(q) => setQualificationModal({ editing: q })}
+            onDeleteQualification={(id) => {
+              if (window.confirm("Delete this qualification?")) store.deleteQualification(id)
             }}
           />
         )}
@@ -150,13 +150,13 @@ export default function App() {
         />
       )}
 
-      {ratingModal && (
-        <RatingFormModal
-          initial={ratingModal.editing}
-          onClose={() => setRatingModal(null)}
+      {qualificationModal && (
+        <QualificationFormModal
+          initial={qualificationModal.editing}
+          onClose={() => setQualificationModal(null)}
           onSave={(draft) => {
-            if (ratingModal.editing) store.updateRating(ratingModal.editing.id, draft)
-            else store.addRating(draft)
+            if (qualificationModal.editing) store.updateQualification(qualificationModal.editing.id, draft)
+            else store.addQualification(draft)
           }}
         />
       )}

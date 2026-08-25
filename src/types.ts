@@ -49,26 +49,38 @@ export type AircraftDraft = Omit<Aircraft, "id">
 
 export type MedicalCategory = "Category 1" | "Category 3" | "Category 4" | "None"
 
-export interface Rating {
+// "instrument-check" is recognized by the currency engine — CAR 401.05(3)'s
+// 24-month instrument rating flight test / IPC requirement, whose renewal
+// date also starts the 6-month grace period before 401.05(3.1)'s 6-approach
+// rule applies. Everything else ("other") is a freeform qualification: a
+// PPC, an instructor rating, an endorsement, a company OPS-spec renewal —
+// tracked for its expiry, but not otherwise understood by the engine.
+export type QualificationKind = "instrument-check" | "other"
+
+export interface Qualification {
   id: string
+  kind: QualificationKind
   name: string
+  /** ISO date the check/training was completed. Only meaningful for
+   *  "instrument-check", where it drives the auto-computed expiry. */
+  completedOn: string
   expiry: string // ISO date, "" = no expiry tracked
   citation: string
   notes: string
 }
 
-export type RatingDraft = Omit<Rating, "id">
+export type QualificationDraft = Omit<Qualification, "id">
 
 export interface PilotProfile {
   pilotName: string
   medicalCategory: MedicalCategory
   medicalExpiry: string // ISO date, "" = not set
-  ratings: Rating[]
+  qualifications: Qualification[]
 }
 
 export const defaultPilotProfile: PilotProfile = {
   pilotName: "",
   medicalCategory: "None",
   medicalExpiry: "",
-  ratings: [],
+  qualifications: [],
 }

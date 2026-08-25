@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from "react"
-import type { Aircraft, AircraftDraft, Flight, FlightDraft, PilotProfile, Rating, RatingDraft } from "../types"
+import type {
+  Aircraft,
+  AircraftDraft,
+  Flight,
+  FlightDraft,
+  PilotProfile,
+  Qualification,
+  QualificationDraft,
+} from "../types"
 import { loadAircraft, loadFlights, loadProfile, saveAircraft, saveFlights, saveProfile } from "./storage"
 import { newId } from "./id"
 
@@ -48,25 +56,25 @@ export function useLogbook() {
     if (nextProfile) setProfile(nextProfile)
   }
 
-  function updateProfile(patch: Partial<Omit<PilotProfile, "ratings">>) {
+  function updateProfile(patch: Partial<Omit<PilotProfile, "qualifications">>) {
     setProfile((prev) => ({ ...prev, ...patch }))
   }
 
-  function addRating(draft: RatingDraft): Rating {
-    const created: Rating = { ...draft, id: newId() }
-    setProfile((prev) => ({ ...prev, ratings: [...prev.ratings, created] }))
+  function addQualification(draft: QualificationDraft): Qualification {
+    const created: Qualification = { ...draft, id: newId() }
+    setProfile((prev) => ({ ...prev, qualifications: [...prev.qualifications, created] }))
     return created
   }
 
-  function updateRating(id: string, draft: RatingDraft) {
+  function updateQualification(id: string, draft: QualificationDraft) {
     setProfile((prev) => ({
       ...prev,
-      ratings: prev.ratings.map((r) => (r.id === id ? { ...draft, id } : r)),
+      qualifications: prev.qualifications.map((q) => (q.id === id ? { ...draft, id } : q)),
     }))
   }
 
-  function deleteRating(id: string) {
-    setProfile((prev) => ({ ...prev, ratings: prev.ratings.filter((r) => r.id !== id) }))
+  function deleteQualification(id: string) {
+    setProfile((prev) => ({ ...prev, qualifications: prev.qualifications.filter((q) => q.id !== id) }))
   }
 
   return {
@@ -82,9 +90,9 @@ export function useLogbook() {
     deleteFlight,
     replaceAll,
     updateProfile,
-    addRating,
-    updateRating,
-    deleteRating,
+    addQualification,
+    updateQualification,
+    deleteQualification,
   }
 }
 

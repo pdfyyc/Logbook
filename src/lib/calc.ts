@@ -1,4 +1,4 @@
-import type { Flight, PilotProfile } from "../types"
+import type { Flight, PilotProfile, Qualification } from "../types"
 
 export interface Totals {
   totalTime: number
@@ -130,6 +130,12 @@ function daysUntil(dateIso: string, now: Date): number {
   return Math.round((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
 }
 
+function addMonths(dateIso: string, months: number): string {
+  const d = new Date(dateIso + "T00:00:00Z")
+  d.setUTCMonth(d.getUTCMonth() + months)
+  return toDateOnly(d)
+}
+
 /** Finds the date on which a rolling-window count first drops below `required`,
  *  as the oldest contributing entries age out of the window. Returns null if
  *  the count never drops below `required` from what's already logged. */
@@ -232,11 +238,35 @@ const IFR_REQUIRED_APPROACHES = 6
 
 // CAR 401.05(3.1): 6 instrument approaches within the preceding 6 months —
 // no holding procedure or navaid-tracking requirement exists in the CARs
-// (that language is the FAA's 14 CFR 61.57(c), not this regulation). Note
-// this subsection only applies starting the 7th month after the pilot's
-// last instrument rating flight test / IPC under 401.05(3), which this app
-// doesn't currently track — see the "IFR renewal" item below.
-function computeIfrCurrencyItem(flights: Flight[], now: Date): CurrencyItem {
+// (that language is the FAA's 14 CFR 61.57(c), not this regulation). This
+// subsection only applies starting the 7th month after the pilot's last
+// instrument rating flight test / IPC under 401.05(3) — `graceUntil`, when
+// provided, is that cutoff date (completedOn + 6 months) from the most
+// recent "instrument-check" qualification on file.
+function computeIfrCurrencyItem(flights: Flight[], now: Date, graceUntil: string | null): CurrencyItem {
+  if (graceUntil) {
+    const daysRemaining = daysUntil(graceUntil, now)
+    if (daysRemaining > 0) {
+      const level = levelForDaysRemaining(daysRemaining)
+      return {
+        id: "ifr-recency",
+        label: "IFR approach recency",
+        citation: "CAR 401.05(3.1)",
+        level,
+        current: true,
+        statusText: "Current (grace period)",
+        detail: `Within 6 months of your last instrument check — the 6-approach rule doesn't apply until ${graceUntil}.`,
+        fixIt:
+          level === "green"
+            ? "No approaches needed yet — you're inside the post-check grace period."
+            : `Grace period ends ${graceUntil} — after that you'll need 6 approaches in the trailing 6 months.`,
+        windowStart: null,
+        windowEnd: null,
+        qualifying: [],
+      }
+    }
+  }
+
   const inWindow = flights
     .map((f) => ({ f, age: daysAgo(f.date, now), n: f.approaches }))
     .filter((x) => x.n > 0 && x.age >= 0 && x.age <= IFR_WINDOW_DAYS)
@@ -359,9 +389,30 @@ export function computeMedicalCurrency(profile: PilotProfile, now: Date = new Da
   })
 }
 
+function latestInstrumentCheck(profile: PilotProfile): Qualification | null {
+  const checks = profile.qualifications.filter((q) => q.kind === "instrument-check" && q.completedOn)
+  if (checks.length === 0) return null
+  return checks.reduce((latest, q) => (q.completedOn > latest.completedOn ? q : latest))
+}
+
+// CAR 401.05(3): the 24-month instrument rating flight test / IPC that gates
+// exercising instrument privileges at all — separate from, and a prerequisite
+// to, the 401.05(3.1) approach-recency item above.
+export function computeIfrRenewalCurrency(profile: PilotProfile, now: Date = new Date()): CurrencyItem {
+  const check = latestInstrumentCheck(profile)
+  return computeExpiryCurrencyItem({
+    id: "ifr-renewal",
+    label: "IFR renewal (flight test / IPC)",
+    citation: "CAR 401.05(3)",
+    expiry: check ? addMonths(check.completedOn, 24) : "",
+    now,
+    emptyMessage: "Add your last instrument rating flight test or IPC date under Profile → Qualifications.",
+  })
+}
+
 /** Computes every tracked CARs currency/recency item for the dashboard, in
  *  priority order: recency items derived from logged flights first, then
- *  expiry-based items (medical, ratings/endorsements). */
+ *  expiry-based items (medical, IFR renewal, qualifications). */
 export function computeCarsCurrency(
   flights: Flight[],
   profile: PilotProfile,
@@ -393,18 +444,22 @@ export function computeCarsCurrency(
     }),
   )
 
-  items.push(computeIfrCurrencyItem(flights, now))
+  const latestCheck = latestInstrumentCheck(profile)
+  const graceUntil = latestCheck ? addMonths(latestCheck.completedOn, 6) : null
+  items.push(computeIfrCurrencyItem(flights, now, graceUntil))
+  items.push(computeIfrRenewalCurrency(profile, now))
 
   items.push(computeMedicalCurrency(profile, now))
 
-  for (const r of profile.ratings) {
-    if (!r.expiry) continue // no expiry to track — informational only, not a currency risk
+  for (const q of profile.qualifications) {
+    if (q.kind === "instrument-check") continue // surfaced via the dedicated IFR renewal item above
+    if (!q.expiry) continue // no expiry to track — informational only, not a currency risk
     items.push(
       computeExpiryCurrencyItem({
-        id: `rating-${r.id}`,
-        label: r.name,
-        citation: r.citation || "Operator / TC requirement",
-        expiry: r.expiry,
+        id: `qual-${q.id}`,
+        label: q.name,
+        citation: q.citation || "Operator / TC requirement",
+        expiry: q.expiry,
         now,
       }),
     )

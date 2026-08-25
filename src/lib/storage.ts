@@ -1,10 +1,12 @@
 import type { Aircraft, Flight, PilotProfile } from "../types"
 import { defaultPilotProfile } from "../types"
+import type { WeatherSnapshot } from "./weather"
 
 const AIRCRAFT_KEY = "logbook:aircraft"
 const FLIGHTS_KEY = "logbook:flights"
 const THEME_KEY = "logbook:theme"
 const PROFILE_KEY = "logbook:profile"
+const WEATHER_KEY = "logbook:weather"
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -54,6 +56,14 @@ export function loadProfile(): PilotProfile {
 
 export function saveProfile(profile: PilotProfile) {
   write(PROFILE_KEY, profile)
+}
+
+export function loadWeatherCache(): WeatherSnapshot | null {
+  return read<WeatherSnapshot | null>(WEATHER_KEY, null)
+}
+
+export function saveWeatherCache(snapshot: WeatherSnapshot) {
+  write(WEATHER_KEY, snapshot)
 }
 
 export interface LogbookExport {

@@ -25,6 +25,7 @@ import { Card } from "./ui/Card"
 import { Badge } from "./ui/Badge"
 import { Button } from "./ui/Button"
 import { Avatar } from "./ui/Avatar"
+import { WeatherWidget } from "./WeatherWidget"
 
 interface Props {
   flights: Flight[]
@@ -59,6 +60,8 @@ export function Dashboard({ flights, aircraftById, profile, onAddFlight, onViewA
           <h1 className="text-lg font-bold text-[var(--text)]">{name}</h1>
         </div>
       </div>
+
+      <WeatherWidget />
 
       <Button variant="gradient" pill className="w-full" onClick={onAddFlight}>
         <Rocket size={16} /> New log entry

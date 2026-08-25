@@ -1,6 +1,7 @@
-import { Clock, Moon, MoveRight, PlaneTakeoff, Radar, User } from "lucide-react"
-import type { Aircraft, Flight } from "../types"
-import { computeCurrency, computeTotals, formatHours } from "../lib/calc"
+import { useState } from "react"
+import { ChevronDown, ChevronUp, Clock, Moon, MoveRight, PlaneTakeoff, Radar, User } from "lucide-react"
+import type { Aircraft, Flight, PilotProfile } from "../types"
+import { computeCarsCurrency, computeTotals, formatHours, type CurrencyItem, type CurrencyLevel } from "../lib/calc"
 import { StatCard } from "./ui/StatCard"
 import { Card } from "./ui/Card"
 import { Badge } from "./ui/Badge"
@@ -8,12 +9,13 @@ import { Badge } from "./ui/Badge"
 interface Props {
   flights: Flight[]
   aircraftById: Map<string, Aircraft>
+  profile: PilotProfile
   onAddFlight: () => void
 }
 
-export function Dashboard({ flights, aircraftById, onAddFlight }: Props) {
+export function Dashboard({ flights, aircraftById, profile, onAddFlight }: Props) {
   const totals = computeTotals(flights)
-  const currency = computeCurrency(flights)
+  const currency = computeCarsCurrency(flights, profile)
 
   const recent = flights
     .slice()
@@ -55,23 +57,16 @@ export function Dashboard({ flights, aircraftById, onAddFlight }: Props) {
       </div>
 
       <Card className="p-4">
-        <h3 className="mb-3 text-sm font-semibold text-[var(--text)]">Currency</h3>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <CurrencyRow
-            label="Passenger — day"
-            ok={currency.dayCurrent}
-            detail={`${currency.dayLandingsIn90} landings in last 90 days (need 3)`}
-          />
-          <CurrencyRow
-            label="Passenger — night"
-            ok={currency.nightCurrent}
-            detail={`${currency.nightLandingsIn90} night landings in last 90 days (need 3)`}
-          />
-          <CurrencyRow
-            label="Instrument"
-            ok={currency.instrumentCurrent}
-            detail={`${currency.approachesIn6mo} approaches in last 6 months (need 6)`}
-          />
+        <div className="mb-3 flex items-baseline justify-between gap-2">
+          <h3 className="text-sm font-semibold text-[var(--text)]">Currency & recency</h3>
+          <span className="text-xs text-[var(--text-muted)]">
+            Rolling windows, recalculated on every flight — for planning only, verify against the CARs
+          </span>
+        </div>
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          {currency.map((item) => (
+            <CurrencyCard key={item.id} item={item} />
+          ))}
         </div>
       </Card>
 
@@ -104,14 +99,64 @@ export function Dashboard({ flights, aircraftById, onAddFlight }: Props) {
   )
 }
 
-function CurrencyRow({ label, ok, detail }: { label: string; ok: boolean; detail: string }) {
+const levelTone: Record<CurrencyLevel, "success" | "warning" | "danger"> = {
+  green: "success",
+  yellow: "warning",
+  red: "danger",
+}
+
+const levelDot: Record<CurrencyLevel, string> = {
+  green: "bg-emerald-500",
+  yellow: "bg-amber-500",
+  red: "bg-red-500",
+}
+
+function CurrencyCard({ item }: { item: CurrencyItem }) {
+  const [expanded, setExpanded] = useState(false)
+
   return (
     <div className="rounded-lg border border-[var(--border)] p-3">
       <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="text-sm font-medium text-[var(--text)]">{label}</span>
-        <Badge tone={ok ? "success" : "warning"}>{ok ? "Current" : "Not current"}</Badge>
+        <span className={`h-2 w-2 shrink-0 rounded-full ${levelDot[item.level]}`} aria-hidden />
+        <span className="text-sm font-medium text-[var(--text)]">{item.label}</span>
+        <Badge tone={levelTone[item.level]}>{item.statusText}</Badge>
+        <span className="ml-auto text-[10px] font-mono uppercase tracking-wide text-[var(--text-muted)]">
+          {item.citation}
+        </span>
       </div>
-      <p className="text-xs text-[var(--text-muted)]">{detail}</p>
+      <p className="text-xs text-[var(--text-muted)]">{item.detail}</p>
+      <p className="mt-1.5 text-xs font-medium text-[var(--text)]">{item.fixIt}</p>
+
+      {item.qualifying.length > 0 && (
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="flex items-center gap-1 text-xs font-medium text-[var(--accent)] cursor-pointer"
+          >
+            {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            {expanded ? "Hide" : "Show"} qualifying flights ({item.qualifying.length})
+          </button>
+          {expanded && (
+            <ul className="mt-2 space-y-1 border-t border-[var(--border)] pt-2">
+              {item.qualifying
+                .slice()
+                .sort((a, b) => b.date.localeCompare(a.date))
+                .map((q) => (
+                  <li key={q.flightId} className="flex justify-between gap-2 text-xs text-[var(--text-muted)]">
+                    <span>{q.date}</span>
+                    <span>{q.note}</span>
+                  </li>
+                ))}
+            </ul>
+          )}
+          {item.windowStart && item.windowEnd && (
+            <p className="mt-2 text-[10px] text-[var(--text-muted)]">
+              Window: {item.windowStart} → {item.windowEnd}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   )
 }

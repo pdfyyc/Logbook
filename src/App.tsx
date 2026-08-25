@@ -4,13 +4,15 @@ import { Nav, type Tab } from "./components/Nav"
 import { Dashboard } from "./components/Dashboard"
 import { LogbookView } from "./components/LogbookView"
 import { AircraftView } from "./components/AircraftView"
+import { ProfileView } from "./components/ProfileView"
 import { FlightFormModal } from "./components/FlightFormModal"
 import { AircraftFormModal } from "./components/AircraftFormModal"
+import { RatingFormModal } from "./components/RatingFormModal"
 import { Button } from "./components/ui/Button"
 import { useLogbook } from "./lib/useLogbook"
 import { loadTheme, saveTheme, exportData, isLogbookExport } from "./lib/storage"
 import { downloadTextFile } from "./lib/csv"
-import type { Aircraft, Flight } from "./types"
+import type { Aircraft, Flight, Rating } from "./types"
 
 export default function App() {
   const store = useLogbook()
@@ -19,6 +21,7 @@ export default function App() {
 
   const [flightModal, setFlightModal] = useState<null | { editing?: Flight }>(null)
   const [aircraftModal, setAircraftModal] = useState<null | { editing?: Aircraft }>(null)
+  const [ratingModal, setRatingModal] = useState<null | { editing?: Rating }>(null)
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -31,7 +34,7 @@ export default function App() {
       try {
         const parsed = JSON.parse(String(reader.result))
         if (!isLogbookExport(parsed)) throw new Error("Invalid file")
-        store.replaceAll(parsed.aircraft, parsed.flights)
+        store.replaceAll(parsed.aircraft, parsed.flights, parsed.profile)
       } catch {
         window.alert("Could not read that file — expected a Logbook JSON export.")
       }
@@ -53,6 +56,7 @@ export default function App() {
           <Dashboard
             flights={store.flights}
             aircraftById={store.aircraftById}
+            profile={store.profile}
             onAddFlight={() => setFlightModal({})}
           />
         )}
@@ -90,13 +94,25 @@ export default function App() {
           />
         )}
 
+        {tab === "profile" && (
+          <ProfileView
+            profile={store.profile}
+            onUpdateProfile={store.updateProfile}
+            onAddRating={() => setRatingModal({})}
+            onEditRating={(r) => setRatingModal({ editing: r })}
+            onDeleteRating={(id) => {
+              if (window.confirm("Delete this rating/endorsement?")) store.deleteRating(id)
+            }}
+          />
+        )}
+
         <div className="mt-10 flex justify-center">
           <Button
             variant="ghost"
             onClick={() =>
               downloadTextFile(
                 "logbook-backup.json",
-                JSON.stringify(exportData(store.aircraft, store.flights), null, 2),
+                JSON.stringify(exportData(store.aircraft, store.flights, store.profile), null, 2),
                 "application/json",
               )
             }
@@ -129,6 +145,17 @@ export default function App() {
           onSave={(draft) => {
             if (aircraftModal.editing) store.updateAircraft(aircraftModal.editing.id, draft)
             else store.addAircraft(draft)
+          }}
+        />
+      )}
+
+      {ratingModal && (
+        <RatingFormModal
+          initial={ratingModal.editing}
+          onClose={() => setRatingModal(null)}
+          onSave={(draft) => {
+            if (ratingModal.editing) store.updateRating(ratingModal.editing.id, draft)
+            else store.addRating(draft)
           }}
         />
       )}

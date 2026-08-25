@@ -1,10 +1,11 @@
 import type { ReactNode } from "react"
 
-type Tone = "success" | "warning" | "neutral"
+type Tone = "success" | "warning" | "danger" | "neutral"
 
 const toneClasses: Record<Tone, string> = {
   success: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
   warning: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  danger: "bg-red-500/15 text-red-600 dark:text-red-400",
   neutral: "bg-[var(--bg-inset)] text-[var(--text-muted)]",
 }
 

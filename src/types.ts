@@ -46,3 +46,27 @@ export interface Flight {
 
 export type FlightDraft = Omit<Flight, "id">
 export type AircraftDraft = Omit<Aircraft, "id">
+
+export type MedicalCategory = "Category 1" | "Category 3" | "Category 4" | "None"
+
+export interface Rating {
+  id: string
+  name: string
+  expiry: string // ISO date, "" = no expiry tracked
+  citation: string
+  notes: string
+}
+
+export type RatingDraft = Omit<Rating, "id">
+
+export interface PilotProfile {
+  medicalCategory: MedicalCategory
+  medicalExpiry: string // ISO date, "" = not set
+  ratings: Rating[]
+}
+
+export const defaultPilotProfile: PilotProfile = {
+  medicalCategory: "None",
+  medicalExpiry: "",
+  ratings: [],
+}

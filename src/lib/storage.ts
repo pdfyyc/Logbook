@@ -1,8 +1,10 @@
-import type { Aircraft, Flight } from "../types"
+import type { Aircraft, Flight, PilotProfile } from "../types"
+import { defaultPilotProfile } from "../types"
 
 const AIRCRAFT_KEY = "logbook:aircraft"
 const FLIGHTS_KEY = "logbook:flights"
 const THEME_KEY = "logbook:theme"
+const PROFILE_KEY = "logbook:profile"
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -46,15 +48,28 @@ export function saveTheme(theme: "light" | "dark") {
   write(THEME_KEY, theme)
 }
 
+export function loadProfile(): PilotProfile {
+  return read<PilotProfile>(PROFILE_KEY, defaultPilotProfile)
+}
+
+export function saveProfile(profile: PilotProfile) {
+  write(PROFILE_KEY, profile)
+}
+
 export interface LogbookExport {
-  version: 1
+  version: 1 | 2
   exportedAt: string
   aircraft: Aircraft[]
   flights: Flight[]
+  profile?: PilotProfile
 }
 
-export function exportData(aircraft: Aircraft[], flights: Flight[]): LogbookExport {
-  return { version: 1, exportedAt: new Date().toISOString(), aircraft, flights }
+export function exportData(
+  aircraft: Aircraft[],
+  flights: Flight[],
+  profile: PilotProfile,
+): LogbookExport {
+  return { version: 2, exportedAt: new Date().toISOString(), aircraft, flights, profile }
 }
 
 export function isLogbookExport(value: unknown): value is LogbookExport {

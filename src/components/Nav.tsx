@@ -1,11 +1,12 @@
-import { BookOpen, LayoutDashboard, Moon, Plane, Sun } from "lucide-react"
+import { BookOpen, LayoutDashboard, Moon, Plane, Sun, UserCircle2 } from "lucide-react"
 
-export type Tab = "dashboard" | "logbook" | "aircraft"
+export type Tab = "dashboard" | "logbook" | "aircraft" | "profile"
 
 const tabs: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "logbook", label: "Logbook", icon: BookOpen },
   { id: "aircraft", label: "Aircraft", icon: Plane },
+  { id: "profile", label: "Profile", icon: UserCircle2 },
 ]
 
 interface Props {

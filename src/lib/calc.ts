@@ -1,4 +1,4 @@
-import type { Flight } from "../types"
+import type { Flight, PilotProfile } from "../types"
 
 export interface Totals {
   totalTime: number
@@ -54,47 +54,354 @@ export function computeTotals(flights: Flight[]): Totals {
   }, { ...emptyTotals })
 }
 
+export function formatHours(hours: number): string {
+  return hours.toFixed(1)
+}
+
+// ---------------------------------------------------------------------------
+// Currency & Recency Intelligence Engine (CARs-based)
+//
+// Dates are handled as calendar days (UTC midnight) throughout — precise
+// enough for recency planning, not a substitute for verifying the current
+// text of the CARs before flight.
+// ---------------------------------------------------------------------------
+
+export type CurrencyLevel = "green" | "yellow" | "red"
+
+export interface QualifyingFlight {
+  flightId: string
+  date: string
+  note: string
+}
+
+export interface CurrencyItem {
+  id: string
+  label: string
+  citation: string
+  level: CurrencyLevel
+  current: boolean
+  statusText: string
+  detail: string
+  fixIt: string
+  windowStart: string | null
+  windowEnd: string | null
+  qualifying: QualifyingFlight[]
+}
+
+function toDateOnly(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+
 function daysAgo(dateIso: string, referenceDate: Date): number {
-  const d = new Date(dateIso + "T00:00:00")
+  const d = new Date(dateIso + "T00:00:00Z")
   const diffMs = referenceDate.getTime() - d.getTime()
   return diffMs / (1000 * 60 * 60 * 24)
 }
 
-export interface CurrencyStatus {
-  dayCurrent: boolean
-  dayLandingsIn90: number
-  nightCurrent: boolean
-  nightLandingsIn90: number
-  instrumentCurrent: boolean
-  approachesIn6mo: number
+function addDays(dateIso: string, days: number): string {
+  const d = new Date(dateIso + "T00:00:00Z")
+  d.setUTCDate(d.getUTCDate() + Math.round(days))
+  return toDateOnly(d)
 }
 
-export function computeCurrency(flights: Flight[], now: Date = new Date()): CurrencyStatus {
-  let dayLandingsIn90 = 0
-  let nightLandingsIn90 = 0
-  let approachesIn6mo = 0
+function daysUntil(dateIso: string, now: Date): number {
+  const target = new Date(dateIso + "T00:00:00Z")
+  return Math.round((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+}
 
-  for (const f of flights) {
-    const age = daysAgo(f.date, now)
-    if (age <= 90) {
-      dayLandingsIn90 += f.dayLandings + f.nightLandings
-      nightLandingsIn90 += f.nightLandings
-    }
-    if (age <= 182) {
-      approachesIn6mo += f.approaches
+/** Finds the date on which a rolling-window count first drops below `required`,
+ *  as the oldest contributing entries age out of the window. Returns null if
+ *  the count never drops below `required` from what's already logged. */
+function findLapseDate(
+  ascendingEntries: { date: string; n: number }[],
+  total: number,
+  required: number,
+  windowDays: number,
+): string | null {
+  let running = total
+  for (const e of ascendingEntries) {
+    if (running - e.n < required) return addDays(e.date, windowDays)
+    running -= e.n
+  }
+  return null
+}
+
+function levelForDaysRemaining(daysRemaining: number): CurrencyLevel {
+  if (daysRemaining <= 7) return "red"
+  if (daysRemaining <= 30) return "yellow"
+  return "green"
+}
+
+interface LandingCurrencyOptions {
+  id: string
+  label: string
+  citation: string
+  windowDays: number
+  required: number
+  unit: string
+  count: (f: Flight) => number
+}
+
+function computeLandingCurrencyItem(
+  flights: Flight[],
+  now: Date,
+  opts: LandingCurrencyOptions,
+): CurrencyItem {
+  const inWindow = flights
+    .map((f) => ({ f, age: daysAgo(f.date, now), n: opts.count(f) }))
+    .filter((x) => x.n > 0 && x.age >= 0 && x.age <= opts.windowDays)
+    .sort((a, b) => a.f.date.localeCompare(b.f.date))
+
+  const total = inWindow.reduce((s, x) => s + x.n, 0)
+  const current = total >= opts.required
+  const windowStart = addDays(toDateOnly(now), -opts.windowDays)
+  const windowEnd = toDateOnly(now)
+  const months = Math.round(opts.windowDays / 30.44)
+
+  const qualifying: QualifyingFlight[] = inWindow.map((x) => ({
+    flightId: x.f.id,
+    date: x.f.date,
+    note: `${x.n} ${opts.unit}`,
+  }))
+
+  let level: CurrencyLevel
+  let statusText: string
+  let fixIt: string
+
+  if (!current) {
+    level = "red"
+    statusText = "Not current"
+    const shortfall = opts.required - total
+    fixIt = `Fly ${shortfall} more ${opts.unit} to restore currency.`
+  } else {
+    const lapseDate = findLapseDate(
+      inWindow.map((x) => ({ date: x.f.date, n: x.n })),
+      total,
+      opts.required,
+      opts.windowDays,
+    )
+    statusText = "Current"
+    if (lapseDate) {
+      const daysRemaining = daysUntil(lapseDate, now)
+      level = levelForDaysRemaining(daysRemaining)
+      fixIt = `Currency lapses ${lapseDate} unless you log another ${opts.unit} before then.`
+    } else {
+      level = "green"
+      fixIt = "Currency is secure — nothing will age out of the window soon."
     }
   }
 
   return {
-    dayCurrent: dayLandingsIn90 >= 3,
-    dayLandingsIn90,
-    nightCurrent: nightLandingsIn90 >= 3,
-    nightLandingsIn90,
-    instrumentCurrent: approachesIn6mo >= 6,
-    approachesIn6mo,
+    id: opts.id,
+    label: opts.label,
+    citation: opts.citation,
+    level,
+    current,
+    statusText,
+    detail: `${total} ${opts.unit} in the last ${months} months (need ${opts.required})`,
+    fixIt,
+    windowStart,
+    windowEnd,
+    qualifying,
   }
 }
 
-export function formatHours(hours: number): string {
-  return hours.toFixed(1)
+const IFR_WINDOW_DAYS = 182
+const IFR_REQUIRED_APPROACHES = 6
+const IFR_REQUIRED_HOLDS = 1
+
+function computeIfrCurrencyItem(flights: Flight[], now: Date): CurrencyItem {
+  const inWindow = flights
+    .map((f) => ({ f, age: daysAgo(f.date, now) }))
+    .filter((x) => x.age >= 0 && x.age <= IFR_WINDOW_DAYS && (x.f.approaches > 0 || x.f.holds > 0))
+    .sort((a, b) => a.f.date.localeCompare(b.f.date))
+
+  const totalApproaches = inWindow.reduce((s, x) => s + x.f.approaches, 0)
+  const totalHolds = inWindow.reduce((s, x) => s + x.f.holds, 0)
+  const current = totalApproaches >= IFR_REQUIRED_APPROACHES && totalHolds >= IFR_REQUIRED_HOLDS
+
+  const windowStart = addDays(toDateOnly(now), -IFR_WINDOW_DAYS)
+  const windowEnd = toDateOnly(now)
+
+  const qualifying: QualifyingFlight[] = inWindow.map((x) => ({
+    flightId: x.f.id,
+    date: x.f.date,
+    note: [
+      x.f.approaches > 0 ? `${x.f.approaches} approach${x.f.approaches === 1 ? "" : "es"}` : null,
+      x.f.holds > 0 ? `${x.f.holds} hold${x.f.holds === 1 ? "" : "s"}/track` : null,
+    ]
+      .filter(Boolean)
+      .join(", "),
+  }))
+
+  let level: CurrencyLevel
+  let statusText: string
+  let fixIt: string
+
+  if (!current) {
+    level = "red"
+    statusText = "Not current"
+    const needApproaches = Math.max(0, IFR_REQUIRED_APPROACHES - totalApproaches)
+    const needHolds = Math.max(0, IFR_REQUIRED_HOLDS - totalHolds)
+    const parts: string[] = []
+    if (needApproaches > 0) parts.push(`${needApproaches} approach${needApproaches === 1 ? "" : "es"}`)
+    if (needHolds > 0) parts.push(`${needHolds} hold${needHolds === 1 ? "" : "s"}/tracking exercise${needHolds === 1 ? "" : "s"}`)
+    fixIt = `Fly ${parts.join(" and ")} to restore IFR recency.`
+  } else {
+    const lapseApproaches = findLapseDate(
+      inWindow.filter((x) => x.f.approaches > 0).map((x) => ({ date: x.f.date, n: x.f.approaches })),
+      totalApproaches,
+      IFR_REQUIRED_APPROACHES,
+      IFR_WINDOW_DAYS,
+    )
+    const lapseHolds = findLapseDate(
+      inWindow.filter((x) => x.f.holds > 0).map((x) => ({ date: x.f.date, n: x.f.holds })),
+      totalHolds,
+      IFR_REQUIRED_HOLDS,
+      IFR_WINDOW_DAYS,
+    )
+    const candidates = [lapseApproaches, lapseHolds].filter((d): d is string => d !== null).sort()
+    const lapseDate = candidates[0] ?? null
+
+    statusText = "Current"
+    if (lapseDate) {
+      const daysRemaining = daysUntil(lapseDate, now)
+      level = levelForDaysRemaining(daysRemaining)
+      fixIt = `Recency lapses ${lapseDate} unless you fly another approach or hold before then.`
+    } else {
+      level = "green"
+      fixIt = "Recency is secure — nothing will age out of the window soon."
+    }
+  }
+
+  return {
+    id: "ifr-recency",
+    label: "IFR recency",
+    citation: "CAR 401.05(3)",
+    level,
+    current,
+    statusText,
+    detail: `${totalApproaches} approaches, ${totalHolds} holds/tracking in the last 6 months (need ${IFR_REQUIRED_APPROACHES} approaches + ${IFR_REQUIRED_HOLDS} hold)`,
+    fixIt,
+    windowStart,
+    windowEnd,
+    qualifying,
+  }
+}
+
+interface ExpiryCurrencyOptions {
+  id: string
+  label: string
+  citation: string
+  expiry: string
+  now: Date
+  emptyMessage?: string
+}
+
+function computeExpiryCurrencyItem(opts: ExpiryCurrencyOptions): CurrencyItem {
+  if (!opts.expiry) {
+    return {
+      id: opts.id,
+      label: opts.label,
+      citation: opts.citation,
+      level: "yellow",
+      current: false,
+      statusText: "Not set",
+      detail: opts.emptyMessage ?? "No expiry date on file.",
+      fixIt: "Add the expiry date in your Profile to track this automatically.",
+      windowStart: null,
+      windowEnd: null,
+      qualifying: [],
+    }
+  }
+
+  const daysRemaining = daysUntil(opts.expiry, opts.now)
+  const current = daysRemaining >= 0
+  const level: CurrencyLevel = !current ? "red" : levelForDaysRemaining(daysRemaining)
+
+  return {
+    id: opts.id,
+    label: opts.label,
+    citation: opts.citation,
+    level,
+    current,
+    statusText: current ? "Valid" : "Expired",
+    detail: current
+      ? `Expires ${opts.expiry} (${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining)`
+      : `Expired ${opts.expiry} (${Math.abs(daysRemaining)} day${Math.abs(daysRemaining) === 1 ? "" : "s"} ago)`,
+    fixIt: current
+      ? "No action needed yet — renew before the expiry date to stay current."
+      : "Renew immediately — you may not exercise the privileges of this qualification until it's renewed.",
+    windowStart: null,
+    windowEnd: null,
+    qualifying: [],
+  }
+}
+
+export function computeMedicalCurrency(profile: PilotProfile, now: Date = new Date()): CurrencyItem {
+  return computeExpiryCurrencyItem({
+    id: "medical",
+    label:
+      profile.medicalCategory !== "None"
+        ? `Medical certificate (${profile.medicalCategory})`
+        : "Medical certificate",
+    citation: "CAR 404.03 / 404.04",
+    expiry: profile.medicalExpiry,
+    now,
+    emptyMessage: "Add your medical expiry date in Profile to track this automatically.",
+  })
+}
+
+/** Computes every tracked CARs currency/recency item for the dashboard, in
+ *  priority order: recency items derived from logged flights first, then
+ *  expiry-based items (medical, ratings/endorsements). */
+export function computeCarsCurrency(
+  flights: Flight[],
+  profile: PilotProfile,
+  now: Date = new Date(),
+): CurrencyItem[] {
+  const items: CurrencyItem[] = []
+
+  items.push(
+    computeLandingCurrencyItem(flights, now, {
+      id: "passenger-day",
+      label: "Passenger-carrying — day",
+      citation: "CAR 401.05(2)(a)",
+      windowDays: 182,
+      required: 5,
+      unit: "takeoffs & landings",
+      count: (f) => f.dayLandings + f.nightLandings,
+    }),
+  )
+
+  items.push(
+    computeLandingCurrencyItem(flights, now, {
+      id: "passenger-night",
+      label: "Passenger-carrying — night",
+      citation: "CAR 401.05(2)(b)",
+      windowDays: 182,
+      required: 5,
+      unit: "night takeoffs & landings",
+      count: (f) => f.nightLandings,
+    }),
+  )
+
+  items.push(computeIfrCurrencyItem(flights, now))
+
+  items.push(computeMedicalCurrency(profile, now))
+
+  for (const r of profile.ratings) {
+    if (!r.expiry) continue // no expiry to track — informational only, not a currency risk
+    items.push(
+      computeExpiryCurrencyItem({
+        id: `rating-${r.id}`,
+        label: r.name,
+        citation: r.citation || "Operator / TC requirement",
+        expiry: r.expiry,
+        now,
+      }),
+    )
+  }
+
+  return items
 }

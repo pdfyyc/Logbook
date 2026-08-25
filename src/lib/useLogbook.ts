@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from "react"
-import type { Aircraft, AircraftDraft, Flight, FlightDraft } from "../types"
-import { loadAircraft, loadFlights, saveAircraft, saveFlights } from "./storage"
+import type { Aircraft, AircraftDraft, Flight, FlightDraft, PilotProfile, Rating, RatingDraft } from "../types"
+import { loadAircraft, loadFlights, loadProfile, saveAircraft, saveFlights, saveProfile } from "./storage"
 import { newId } from "./id"
 
 export function useLogbook() {
   const [aircraft, setAircraft] = useState<Aircraft[]>(() => loadAircraft())
   const [flights, setFlights] = useState<Flight[]>(() => loadFlights())
+  const [profile, setProfile] = useState<PilotProfile>(() => loadProfile())
 
   useEffect(() => saveAircraft(aircraft), [aircraft])
   useEffect(() => saveFlights(flights), [flights])
+  useEffect(() => saveProfile(profile), [profile])
 
   const aircraftById = useMemo(() => new Map(aircraft.map((a) => [a.id, a])), [aircraft])
 
@@ -40,14 +42,37 @@ export function useLogbook() {
     setFlights((prev) => prev.filter((f) => f.id !== id))
   }
 
-  function replaceAll(nextAircraft: Aircraft[], nextFlights: Flight[]) {
+  function replaceAll(nextAircraft: Aircraft[], nextFlights: Flight[], nextProfile?: PilotProfile) {
     setAircraft(nextAircraft)
     setFlights(nextFlights)
+    if (nextProfile) setProfile(nextProfile)
+  }
+
+  function updateProfile(patch: Partial<Omit<PilotProfile, "ratings">>) {
+    setProfile((prev) => ({ ...prev, ...patch }))
+  }
+
+  function addRating(draft: RatingDraft): Rating {
+    const created: Rating = { ...draft, id: newId() }
+    setProfile((prev) => ({ ...prev, ratings: [...prev.ratings, created] }))
+    return created
+  }
+
+  function updateRating(id: string, draft: RatingDraft) {
+    setProfile((prev) => ({
+      ...prev,
+      ratings: prev.ratings.map((r) => (r.id === id ? { ...draft, id } : r)),
+    }))
+  }
+
+  function deleteRating(id: string) {
+    setProfile((prev) => ({ ...prev, ratings: prev.ratings.filter((r) => r.id !== id) }))
   }
 
   return {
     aircraft,
     flights,
+    profile,
     aircraftById,
     addAircraft,
     updateAircraft,
@@ -56,6 +81,10 @@ export function useLogbook() {
     updateFlight,
     deleteFlight,
     replaceAll,
+    updateProfile,
+    addRating,
+    updateRating,
+    deleteRating,
   }
 }
 

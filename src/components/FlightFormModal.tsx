@@ -52,7 +52,7 @@ const landingFields: { key: keyof FlightDraft; label: string }[] = [
   { key: "dayLandings", label: "Day landings" },
   { key: "nightLandings", label: "Night landings" },
   { key: "approaches", label: "Approaches" },
-  { key: "holds", label: "Holds / tracking" },
+  { key: "holds", label: "Holds" },
 ]
 
 interface Props {

@@ -229,17 +229,21 @@ function computeLandingCurrencyItem(
 
 const IFR_WINDOW_DAYS = 182
 const IFR_REQUIRED_APPROACHES = 6
-const IFR_REQUIRED_HOLDS = 1
 
+// CAR 401.05(3.1): 6 instrument approaches within the preceding 6 months —
+// no holding procedure or navaid-tracking requirement exists in the CARs
+// (that language is the FAA's 14 CFR 61.57(c), not this regulation). Note
+// this subsection only applies starting the 7th month after the pilot's
+// last instrument rating flight test / IPC under 401.05(3), which this app
+// doesn't currently track — see the "IFR renewal" item below.
 function computeIfrCurrencyItem(flights: Flight[], now: Date): CurrencyItem {
   const inWindow = flights
-    .map((f) => ({ f, age: daysAgo(f.date, now) }))
-    .filter((x) => x.age >= 0 && x.age <= IFR_WINDOW_DAYS && (x.f.approaches > 0 || x.f.holds > 0))
+    .map((f) => ({ f, age: daysAgo(f.date, now), n: f.approaches }))
+    .filter((x) => x.n > 0 && x.age >= 0 && x.age <= IFR_WINDOW_DAYS)
     .sort((a, b) => a.f.date.localeCompare(b.f.date))
 
-  const totalApproaches = inWindow.reduce((s, x) => s + x.f.approaches, 0)
-  const totalHolds = inWindow.reduce((s, x) => s + x.f.holds, 0)
-  const current = totalApproaches >= IFR_REQUIRED_APPROACHES && totalHolds >= IFR_REQUIRED_HOLDS
+  const total = inWindow.reduce((s, x) => s + x.n, 0)
+  const current = total >= IFR_REQUIRED_APPROACHES
 
   const windowStart = addDays(toDateOnly(now), -IFR_WINDOW_DAYS)
   const windowEnd = toDateOnly(now)
@@ -247,12 +251,7 @@ function computeIfrCurrencyItem(flights: Flight[], now: Date): CurrencyItem {
   const qualifying: QualifyingFlight[] = inWindow.map((x) => ({
     flightId: x.f.id,
     date: x.f.date,
-    note: [
-      x.f.approaches > 0 ? `${x.f.approaches} approach${x.f.approaches === 1 ? "" : "es"}` : null,
-      x.f.holds > 0 ? `${x.f.holds} hold${x.f.holds === 1 ? "" : "s"}/track` : null,
-    ]
-      .filter(Boolean)
-      .join(", "),
+    note: `${x.n} approach${x.n === 1 ? "" : "es"}`,
   }))
 
   let level: CurrencyLevel
@@ -262,33 +261,20 @@ function computeIfrCurrencyItem(flights: Flight[], now: Date): CurrencyItem {
   if (!current) {
     level = "red"
     statusText = "Not current"
-    const needApproaches = Math.max(0, IFR_REQUIRED_APPROACHES - totalApproaches)
-    const needHolds = Math.max(0, IFR_REQUIRED_HOLDS - totalHolds)
-    const parts: string[] = []
-    if (needApproaches > 0) parts.push(`${needApproaches} approach${needApproaches === 1 ? "" : "es"}`)
-    if (needHolds > 0) parts.push(`${needHolds} hold${needHolds === 1 ? "" : "s"}/tracking exercise${needHolds === 1 ? "" : "s"}`)
-    fixIt = `Fly ${parts.join(" and ")} to restore IFR recency.`
+    const shortfall = IFR_REQUIRED_APPROACHES - total
+    fixIt = `Fly ${shortfall} more instrument approach${shortfall === 1 ? "" : "es"} to restore IFR recency.`
   } else {
-    const lapseApproaches = findLapseDate(
-      inWindow.filter((x) => x.f.approaches > 0).map((x) => ({ date: x.f.date, n: x.f.approaches })),
-      totalApproaches,
+    const lapseDate = findLapseDate(
+      inWindow.map((x) => ({ date: x.f.date, n: x.n })),
+      total,
       IFR_REQUIRED_APPROACHES,
       IFR_WINDOW_DAYS,
     )
-    const lapseHolds = findLapseDate(
-      inWindow.filter((x) => x.f.holds > 0).map((x) => ({ date: x.f.date, n: x.f.holds })),
-      totalHolds,
-      IFR_REQUIRED_HOLDS,
-      IFR_WINDOW_DAYS,
-    )
-    const candidates = [lapseApproaches, lapseHolds].filter((d): d is string => d !== null).sort()
-    const lapseDate = candidates[0] ?? null
-
     statusText = "Current"
     if (lapseDate) {
       const daysRemaining = daysUntil(lapseDate, now)
       level = levelForDaysRemaining(daysRemaining)
-      fixIt = `Recency lapses ${lapseDate} unless you fly another approach or hold before then.`
+      fixIt = `Recency lapses ${lapseDate} unless you fly another approach before then.`
     } else {
       level = "green"
       fixIt = "Recency is secure — nothing will age out of the window soon."
@@ -297,12 +283,12 @@ function computeIfrCurrencyItem(flights: Flight[], now: Date): CurrencyItem {
 
   return {
     id: "ifr-recency",
-    label: "IFR recency",
-    citation: "CAR 401.05(3)",
+    label: "IFR approach recency",
+    citation: "CAR 401.05(3.1)",
     level,
     current,
     statusText,
-    detail: `${totalApproaches} approaches, ${totalHolds} holds/tracking in the last 6 months (need ${IFR_REQUIRED_APPROACHES} approaches + ${IFR_REQUIRED_HOLDS} hold)`,
+    detail: `${total} instrument approaches in the last 6 months (need ${IFR_REQUIRED_APPROACHES})`,
     fixIt,
     windowStart,
     windowEnd,
@@ -387,7 +373,7 @@ export function computeCarsCurrency(
     computeLandingCurrencyItem(flights, now, {
       id: "passenger-day",
       label: "Passenger-carrying — day",
-      citation: "CAR 401.05(2)(a)",
+      citation: "CAR 401.05(2)(b)(i)(A)",
       windowDays: 182,
       required: 5,
       unit: "takeoffs & landings",
@@ -399,7 +385,7 @@ export function computeCarsCurrency(
     computeLandingCurrencyItem(flights, now, {
       id: "passenger-night",
       label: "Passenger-carrying — night",
-      citation: "CAR 401.05(2)(b)",
+      citation: "CAR 401.05(2)(b)(i)(B)",
       windowDays: 182,
       required: 5,
       unit: "night takeoffs & landings",

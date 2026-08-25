@@ -76,6 +76,9 @@ export interface PilotProfile {
   medicalCategory: MedicalCategory
   medicalExpiry: string // ISO date, "" = not set
   qualifications: Qualification[]
+  /** IDs of licence/rating templates (see lib/licenseRequirements.ts) whose
+   *  progress-toward-completion the student wants tracked. */
+  trackedLicenseGoals: string[]
 }
 
 export const defaultPilotProfile: PilotProfile = {
@@ -83,4 +86,5 @@ export const defaultPilotProfile: PilotProfile = {
   medicalCategory: "None",
   medicalExpiry: "",
   qualifications: [],
+  trackedLicenseGoals: [],
 }

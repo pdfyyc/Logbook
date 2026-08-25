@@ -98,12 +98,15 @@ export default function App() {
         {tab === "profile" && (
           <ProfileView
             profile={store.profile}
+            flights={store.flights}
             onUpdateProfile={store.updateProfile}
             onAddQualification={() => setQualificationModal({})}
             onEditQualification={(q) => setQualificationModal({ editing: q })}
             onDeleteQualification={(id) => {
               if (window.confirm("Delete this qualification?")) store.deleteQualification(id)
             }}
+            onAddLicenseGoal={store.addLicenseGoal}
+            onRemoveLicenseGoal={store.removeLicenseGoal}
           />
         )}
 

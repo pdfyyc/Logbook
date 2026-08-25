@@ -1,11 +1,12 @@
 import { Pencil, ShieldCheck, Trash2, Award, Plus } from "lucide-react"
-import type { MedicalCategory, PilotProfile, Qualification } from "../types"
+import type { Flight, MedicalCategory, PilotProfile, Qualification } from "../types"
 import { computeMedicalCurrency, computeIfrRenewalCurrency } from "../lib/calc"
 import { Card } from "./ui/Card"
 import { Field, Input, Select } from "./ui/Field"
 import { Badge } from "./ui/Badge"
 import { Button } from "./ui/Button"
 import { Avatar } from "./ui/Avatar"
+import { LicenseProgress } from "./LicenseProgress"
 
 const medicalCategories: MedicalCategory[] = ["None", "Category 1", "Category 3", "Category 4"]
 
@@ -15,18 +16,24 @@ function badgeTone(level: "green" | "yellow" | "red") {
 
 interface Props {
   profile: PilotProfile
+  flights: Flight[]
   onUpdateProfile: (patch: Partial<Omit<PilotProfile, "qualifications">>) => void
   onAddQualification: () => void
   onEditQualification: (qualification: Qualification) => void
   onDeleteQualification: (id: string) => void
+  onAddLicenseGoal: (templateId: string) => void
+  onRemoveLicenseGoal: (templateId: string) => void
 }
 
 export function ProfileView({
   profile,
+  flights,
   onUpdateProfile,
   onAddQualification,
   onEditQualification,
   onDeleteQualification,
+  onAddLicenseGoal,
+  onRemoveLicenseGoal,
 }: Props) {
   const medicalItem = computeMedicalCurrency(profile)
   const ifrRenewalItem = computeIfrRenewalCurrency(profile)
@@ -140,6 +147,13 @@ export function ProfileView({
           </div>
         )}
       </Card>
+
+      <LicenseProgress
+        flights={flights}
+        trackedGoals={profile.trackedLicenseGoals}
+        onAddGoal={onAddLicenseGoal}
+        onRemoveGoal={onRemoveLicenseGoal}
+      />
     </div>
   )
 }

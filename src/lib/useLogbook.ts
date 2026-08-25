@@ -77,6 +77,21 @@ export function useLogbook() {
     setProfile((prev) => ({ ...prev, qualifications: prev.qualifications.filter((q) => q.id !== id) }))
   }
 
+  function addLicenseGoal(templateId: string) {
+    setProfile((prev) =>
+      prev.trackedLicenseGoals.includes(templateId)
+        ? prev
+        : { ...prev, trackedLicenseGoals: [...prev.trackedLicenseGoals, templateId] },
+    )
+  }
+
+  function removeLicenseGoal(templateId: string) {
+    setProfile((prev) => ({
+      ...prev,
+      trackedLicenseGoals: prev.trackedLicenseGoals.filter((id) => id !== templateId),
+    }))
+  }
+
   return {
     aircraft,
     flights,
@@ -93,6 +108,8 @@ export function useLogbook() {
     addQualification,
     updateQualification,
     deleteQualification,
+    addLicenseGoal,
+    removeLicenseGoal,
   }
 }
 

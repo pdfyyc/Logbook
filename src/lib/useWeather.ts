@@ -1,52 +1,46 @@
-import { useCallback, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { loadWeatherCache, saveWeatherCache } from "./storage"
-import { fetchWeather, getCurrentPosition, isPermissionDeniedError, type WeatherSnapshot } from "./weather"
+import { fetchWeather, type WeatherSnapshot } from "./weather"
 
-export type WeatherState =
+export type WeatherFetchState =
   | { status: "loading" }
-  | { status: "denied" }
-  | { status: "unsupported" }
   | { status: "error" }
   | { status: "ready"; snapshot: WeatherSnapshot; refreshing: boolean }
 
-export function useWeather() {
-  const [state, setState] = useState<WeatherState>(() => {
+export function useWeather(lat: number, lon: number) {
+  const [state, setState] = useState<WeatherFetchState>(() => {
     const cached = loadWeatherCache()
     return cached ? { status: "ready", snapshot: cached, refreshing: false } : { status: "loading" }
   })
 
-  // Kicks off the fetch without touching state synchronously — safe to call
-  // from the mount effect, since the initial state already reflects loading.
-  const load = useCallback(() => {
-    getCurrentPosition()
-      .then((pos) => fetchWeather(pos.coords.latitude, pos.coords.longitude))
+  useEffect(() => {
+    let cancelled = false
+    fetchWeather(lat, lon)
+      .then((snapshot) => {
+        if (cancelled) return
+        saveWeatherCache(snapshot)
+        setState({ status: "ready", snapshot, refreshing: false })
+      })
+      .catch(() => {
+        if (cancelled) return
+        setState((prev) => (prev.status === "ready" ? { ...prev, refreshing: false } : { status: "error" }))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [lat, lon])
+
+  function retry() {
+    setState((prev) => (prev.status === "ready" ? { ...prev, refreshing: true } : { status: "loading" }))
+    fetchWeather(lat, lon)
       .then((snapshot) => {
         saveWeatherCache(snapshot)
         setState({ status: "ready", snapshot, refreshing: false })
       })
-      .catch((err: unknown) => {
-        if (!("geolocation" in navigator)) {
-          setState({ status: "unsupported" })
-          return
-        }
-        if (isPermissionDeniedError(err)) {
-          setState({ status: "denied" })
-          return
-        }
+      .catch(() => {
         setState((prev) => (prev.status === "ready" ? { ...prev, refreshing: false } : { status: "error" }))
       })
-  }, [])
+  }
 
-  // For the retry/refresh button — sets a loading/refreshing state immediately
-  // in response to the user's click, then reuses the same fetch.
-  const refresh = useCallback(() => {
-    setState((prev) => (prev.status === "ready" ? { ...prev, refreshing: true } : { status: "loading" }))
-    load()
-  }, [load])
-
-  useEffect(() => {
-    load()
-  }, [load])
-
-  return { state, refresh }
+  return { state, retry }
 }

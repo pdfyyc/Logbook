@@ -21,8 +21,13 @@ function relativeTime(iso: string): string {
   return `${hours}h ago`
 }
 
-export function WeatherWidget() {
-  const { state, refresh } = useWeather()
+interface Props {
+  lat: number
+  lon: number
+}
+
+export function WeatherWidget({ lat, lon }: Props) {
+  const { state, retry } = useWeather(lat, lon)
 
   if (state.status === "loading") {
     return (
@@ -33,32 +38,11 @@ export function WeatherWidget() {
     )
   }
 
-  if (state.status === "unsupported") {
-    return null
-  }
-
-  if (state.status === "denied") {
-    return (
-      <Card className="flex items-center justify-between gap-3 p-4">
-        <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
-          <MapPin size={14} />
-          Location access is off — enable it to see local weather.
-        </div>
-        <button
-          onClick={refresh}
-          className="shrink-0 text-xs font-medium text-[var(--accent)] cursor-pointer"
-        >
-          Try again
-        </button>
-      </Card>
-    )
-  }
-
   if (state.status === "error") {
     return (
       <Card className="flex items-center justify-between gap-3 p-4 text-sm text-[var(--text-muted)]">
         Weather unavailable right now.
-        <button onClick={refresh} className="shrink-0 text-xs font-medium text-[var(--accent)] cursor-pointer">
+        <button onClick={retry} className="shrink-0 text-xs font-medium text-[var(--accent)] cursor-pointer">
           Retry
         </button>
       </Card>
@@ -84,7 +68,7 @@ export function WeatherWidget() {
         <div className="flex shrink-0 items-center gap-2">
           <span className="text-2xl font-bold text-[var(--text)]">{Math.round(snapshot.temperatureC)}°C</span>
           <button
-            onClick={refresh}
+            onClick={retry}
             aria-label="Refresh weather"
             className="rounded-md p-1.5 text-[var(--text-muted)] hover:bg-[var(--bg-inset)] hover:text-[var(--text)] cursor-pointer"
           >

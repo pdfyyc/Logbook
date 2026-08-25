@@ -7,6 +7,7 @@ const FLIGHTS_KEY = "logbook:flights"
 const THEME_KEY = "logbook:theme"
 const PROFILE_KEY = "logbook:profile"
 const WEATHER_KEY = "logbook:weather"
+const METAR_ICAO_KEY = "logbook:metarIcao"
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -64,6 +65,16 @@ export function loadWeatherCache(): WeatherSnapshot | null {
 
 export function saveWeatherCache(snapshot: WeatherSnapshot) {
   write(WEATHER_KEY, snapshot)
+}
+
+/** A user-chosen ICAO override for the airport briefing widget — null means
+ *  "follow the nearest-detected airport" rather than a fixed choice. */
+export function loadMetarIcaoOverride(): string | null {
+  return read<string | null>(METAR_ICAO_KEY, null)
+}
+
+export function saveMetarIcaoOverride(icao: string | null) {
+  write(METAR_ICAO_KEY, icao)
 }
 
 export interface LogbookExport {

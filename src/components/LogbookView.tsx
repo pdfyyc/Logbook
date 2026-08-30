@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { Download, Pencil, Plus, Search, Trash2, Upload } from "lucide-react"
+import { Ban, Download, FileText, History, Pencil, Plus, Search, Upload } from "lucide-react"
 import type { Aircraft, Flight } from "../types"
 import { formatHours } from "../lib/calc"
 import { downloadTextFile, flightsToCsv } from "../lib/csv"
@@ -13,7 +13,9 @@ interface Props {
   aircraftById: Map<string, Aircraft>
   onAdd: () => void
   onEdit: (flight: Flight) => void
-  onDelete: (id: string) => void
+  onVoid: (flight: Flight) => void
+  onExperienceSummary: () => void
+  onImportFile: (file: File) => void
   onImportJson: (file: File) => void
 }
 
@@ -25,7 +27,9 @@ export function LogbookView({
   aircraftById,
   onAdd,
   onEdit,
-  onDelete,
+  onVoid,
+  onExperienceSummary,
+  onImportFile,
   onImportJson,
 }: Props) {
   const [query, setQuery] = useState("")
@@ -91,14 +95,21 @@ export function LogbookView({
               }}
             />
             <span className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-inset)] px-3.5 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--border)]/40">
-              <Upload size={15} /> Import
+              <Upload size={15} /> Restore JSON
             </span>
+          </label>
+          <label className="cursor-pointer">
+            <input type="file" accept=".csv,.tsv,.xlsx,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) onImportFile(file); e.target.value = "" }} />
+            <span className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-inset)] px-3.5 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--border)]/40"><Upload size={15} /> Import CSV / Excel</span>
           </label>
           <Button
             variant="secondary"
             onClick={() => downloadTextFile("logbook.csv", flightsToCsv(flights, aircraft), "text/csv")}
           >
             <Download size={15} /> CSV
+          </Button>
+          <Button variant="secondary" onClick={onExperienceSummary}>
+            <FileText size={15} /> Experience summary
           </Button>
           <Button onClick={onAdd}>
             <Plus size={15} /> Add flight
@@ -126,45 +137,63 @@ export function LogbookView({
               return (
                 <tr
                   key={f.id}
-                  className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg-inset)]/60"
+                  className={`border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg-inset)]/60 ${f.voidedAt ? "opacity-60" : ""}`}
                 >
-                  <td className="px-3 py-2 whitespace-nowrap text-[var(--text)]">{f.date}</td>
-                  <td className="px-3 py-2 whitespace-nowrap text-[var(--text)]">
+                  <td className={`px-3 py-2 whitespace-nowrap text-[var(--text)] ${f.voidedAt ? "line-through" : ""}`}>{f.date}</td>
+                  <td className={`px-3 py-2 whitespace-nowrap text-[var(--text)] ${f.voidedAt ? "line-through" : ""}`}>
                     {ac?.tailNumber ?? "—"}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-[var(--text-muted)]">
+                  <td className={`px-3 py-2 whitespace-nowrap text-[var(--text-muted)] ${f.voidedAt ? "line-through" : ""}`}>
                     {f.from}
                     {f.to ? ` → ${f.to}` : ""}
                   </td>
-                  <td className="px-3 py-2 text-right font-mono text-[var(--text)]">
+                  <td className={`px-3 py-2 text-right font-mono text-[var(--text)] ${f.voidedAt ? "line-through" : ""}`}>
                     {formatHours(f.totalTime)}
                   </td>
-                  <td className="px-3 py-2 text-right font-mono text-[var(--text-muted)]">
+                  <td className={`px-3 py-2 text-right font-mono text-[var(--text-muted)] ${f.voidedAt ? "line-through" : ""}`}>
                     {formatHours(f.pic)}
                   </td>
-                  <td className="px-3 py-2 text-right font-mono text-[var(--text-muted)]">
+                  <td className={`px-3 py-2 text-right font-mono text-[var(--text-muted)] ${f.voidedAt ? "line-through" : ""}`}>
                     {formatHours(f.night)}
                   </td>
-                  <td className="px-3 py-2 text-right font-mono text-[var(--text-muted)]">
+                  <td className={`px-3 py-2 text-right font-mono text-[var(--text-muted)] ${f.voidedAt ? "line-through" : ""}`}>
                     {f.dayLandings + f.nightLandings}
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center justify-end gap-1">
+                      {(f.amendments?.length ?? 0) > 0 && (
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-[var(--text-muted)]"
+                          title={`${f.amendments!.length} amendment${f.amendments!.length === 1 ? "" : "s"}; latest: ${f.amendments!.at(-1)?.reason}`}
+                        >
+                          <History size={12} /> Amended
+                        </span>
+                      )}
                       <button
                         onClick={() => onEdit(f)}
+                        disabled={Boolean(f.voidedAt)}
                         className="rounded-md p-1.5 text-[var(--text-muted)] hover:bg-[var(--bg-inset)] hover:text-[var(--text)] cursor-pointer"
                         aria-label="Edit flight"
                       >
                         <Pencil size={14} />
                       </button>
-                      <button
-                        onClick={() => onDelete(f.id)}
-                        className="rounded-md p-1.5 text-[var(--text-muted)] hover:bg-red-500/10 hover:text-red-500 cursor-pointer"
-                        aria-label="Delete flight"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {!f.voidedAt ? (
+                        <button
+                          onClick={() => onVoid(f)}
+                          className="rounded-md p-1.5 text-[var(--text-muted)] hover:bg-amber-500/10 hover:text-amber-500 cursor-pointer"
+                          aria-label="Void flight"
+                        >
+                          <Ban size={14} />
+                        </button>
+                      ) : (
+                        <span className="text-[10px] font-medium uppercase tracking-wide text-amber-500" title={f.voidReason}>
+                          Voided
+                        </span>
+                      )}
                     </div>
+                    {f.voidedAt && (
+                      <p className="mt-1 text-right text-[10px] text-[var(--text-muted)]">{f.voidReason}</p>
+                    )}
                   </td>
                 </tr>
               )

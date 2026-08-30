@@ -6,6 +6,7 @@ const COLUMNS: (keyof Flight)[] = [
   "to",
   "route",
   "totalTime",
+  "dayTime",
   "pic",
   "sic",
   "solo",
@@ -15,16 +16,30 @@ const COLUMNS: (keyof Flight)[] = [
   "night",
   "actualInstrument",
   "simulatedInstrument",
+  "dayTakeoffs",
+  "nightTakeoffs",
   "dayLandings",
   "nightLandings",
   "approaches",
   "holds",
   "simTime",
+  "voidedAt",
+  "voidReason",
+  "sourceAircraftText",
+  "myRole",
+  "legalPicName",
+  "primaryCrewName",
+  "primaryCrewRole",
+  "instructorName",
+  "passengers",
+  "copilotCreditConfirmed",
   "remarks",
 ]
 
-function csvEscape(value: string | number): string {
-  const s = String(value)
+function csvEscape(value: unknown): string {
+  if (value === undefined) return ""
+  const raw = Array.isArray(value) ? JSON.stringify(value) : String(value)
+  const s = typeof value === "string" && /^[=+\-@]/.test(raw) ? `'${raw}` : raw
   if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
   return s
 }

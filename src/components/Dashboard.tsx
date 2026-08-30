@@ -26,6 +26,7 @@ import { Badge } from "./ui/Badge"
 import { Button } from "./ui/Button"
 import { Avatar } from "./ui/Avatar"
 import { LocalConditions } from "./LocalConditions"
+import { LogbookHealthCheck } from "./LogbookHealthCheck"
 
 interface Props {
   flights: Flight[]
@@ -33,6 +34,7 @@ interface Props {
   profile: PilotProfile
   onAddFlight: () => void
   onViewAllFlights: () => void
+  onEditFlight: (flight: Flight, suggestion?: string) => void
 }
 
 function formatShortDate(iso: string): string {
@@ -40,13 +42,14 @@ function formatShortDate(iso: string): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
 }
 
-export function Dashboard({ flights, aircraftById, profile, onAddFlight, onViewAllFlights }: Props) {
+export function Dashboard({ flights, aircraftById, profile, onAddFlight, onViewAllFlights, onEditFlight }: Props) {
   const totals = computeTotals(flights)
   const month = computeMonthTotals(flights)
   const currency = computeCarsCurrency(flights, profile, aircraftById)
   const name = profile.pilotName || "Pilot"
 
   const recent = flights
+    .filter((f) => !f.voidedAt)
     .slice()
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 5)
@@ -128,10 +131,12 @@ export function Dashboard({ flights, aircraftById, profile, onAddFlight, onViewA
         </div>
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {currency.map((item) => (
-            <CurrencyCard key={item.id} item={item} />
+            <CurrencyCard key={item.id} item={item} flights={flights} onEditFlight={onEditFlight} />
           ))}
         </div>
       </Card>
+
+      <LogbookHealthCheck flights={flights} aircraftById={aircraftById} onReviewFlight={onEditFlight} />
     </div>
   )
 }
@@ -182,7 +187,7 @@ const levelDot: Record<CurrencyLevel, string> = {
   red: "bg-red-500",
 }
 
-function CurrencyCard({ item }: { item: CurrencyItem }) {
+function CurrencyCard({ item, flights, onEditFlight }: { item: CurrencyItem; flights: Flight[]; onEditFlight: (flight: Flight) => void }) {
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -217,6 +222,7 @@ function CurrencyCard({ item }: { item: CurrencyItem }) {
                   <li key={q.flightId} className="flex justify-between gap-2 text-xs text-[var(--text-muted)]">
                     <span>{q.date}</span>
                     <span>{q.note}</span>
+                    <button type="button" className="font-medium text-[var(--accent)] hover:underline" onClick={() => { const flight = flights.find((entry) => entry.id === q.flightId); if (flight) onEditFlight(flight) }}>Review</button>
                   </li>
                 ))}
             </ul>

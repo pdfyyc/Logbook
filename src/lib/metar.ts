@@ -67,7 +67,7 @@ async function fetchJsonArray(url: string): Promise<unknown[]> {
 
 export async function fetchMetar(icao: string): Promise<MetarSnapshot | null> {
   const rows = await fetchJsonArray(
-    `https://aviationweather.gov/api/data/metar?ids=${encodeURIComponent(icao)}&format=json`,
+    `/aviation-weather/metar?ids=${encodeURIComponent(icao)}&format=json`,
   )
   const row = rows[0]
   if (!row) return null
@@ -75,7 +75,7 @@ export async function fetchMetar(icao: string): Promise<MetarSnapshot | null> {
   return {
     icao: icao.toUpperCase(),
     raw: firstString(row, ["rawOb", "raw_text", "rawText"]),
-    flightCategory: normalizeFlightCategory(firstString(row, ["fltcat", "flight_category", "flightCategory"])),
+    flightCategory: normalizeFlightCategory(firstString(row, ["fltCat", "fltcat", "flight_category", "flightCategory"])),
     tempC: firstNumber(row, ["temp", "temp_c"]),
     windDirDeg: firstNumber(row, ["wdir", "wind_dir_degrees"]),
     windSpeedKt: firstNumber(row, ["wspd", "wind_speed_kt"]),
@@ -86,7 +86,7 @@ export async function fetchMetar(icao: string): Promise<MetarSnapshot | null> {
 
 export async function fetchTaf(icao: string): Promise<TafSnapshot | null> {
   const rows = await fetchJsonArray(
-    `https://aviationweather.gov/api/data/taf?ids=${encodeURIComponent(icao)}&format=json`,
+    `/aviation-weather/taf?ids=${encodeURIComponent(icao)}&format=json`,
   )
   const row = rows[0]
   if (!row) return null

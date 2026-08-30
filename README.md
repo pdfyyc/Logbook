@@ -14,6 +14,20 @@ Runs entirely in the browser: no account, no server. Your flights are stored loc
 - **Logbook** — searchable, filterable, sortable flight log with quick add/edit/delete.
 - **Aircraft** — manage your fleet with tail number, make/model, category/class, and complex/high-performance/tailwheel/TAA flags.
 - **Import/export** — full JSON backup and restore, plus CSV export for spreadsheets.
+
+## Aircraft data providers
+
+The Add Aircraft UI depends on the `AircraftLookupProvider` contract in
+`src/lib/aircraftRegistry.ts`. The current provider is local-only and returns a
+small aircraft-type suggestion that is always labelled as requiring pilot
+confirmation. A future authoritative provider can implement `lookup(query)`
+without changing the modal.
+
+Shared school aircraft use the separate `SharedAircraftProvider` contract.
+There is deliberately no mock WingRoster connection: a future adapter must
+obtain authenticated, organization-scoped aircraft from the real service and
+return them through `listSharedAircraft()`. Personal nicknames/defaults remain
+on the local pilot-aircraft relationship and must not mutate shared records.
 - **Light/dark mode**, responsive layout with a native-style bottom tab bar on mobile.
 
 Currency calculations are for flight planning only — always verify against the current text of the CARs before exercising any privilege.

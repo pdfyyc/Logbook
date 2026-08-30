@@ -1,5 +1,5 @@
 import { Award, GraduationCap, Square, Trash2 } from "lucide-react"
-import type { Flight, PilotProfile } from "../types"
+import type { Aircraft, Flight, PilotProfile } from "../types"
 import {
   LICENSE_TEMPLATES,
   computeLicenseProgress,
@@ -17,12 +17,13 @@ function formatAmount(value: number, unit: RequirementProgress["unit"]): string 
 interface Props {
   flights: Flight[]
   profile: PilotProfile
+  aircraftById: Map<string, Aircraft>
   trackedGoals: string[]
   onAddGoal: (templateId: string) => void
   onRemoveGoal: (templateId: string) => void
 }
 
-export function LicenseProgress({ flights, profile, trackedGoals, onAddGoal, onRemoveGoal }: Props) {
+export function LicenseProgress({ flights, profile, aircraftById, trackedGoals, onAddGoal, onRemoveGoal }: Props) {
   const untracked = LICENSE_TEMPLATES.filter((t) => !trackedGoals.includes(t.id))
 
   return (
@@ -46,7 +47,7 @@ export function LicenseProgress({ flights, profile, trackedGoals, onAddGoal, onR
         {trackedGoals.map((id) => {
           const template = getLicenseTemplate(id)
           if (!template) return null
-          const progress = computeLicenseProgress(template, flights, profile)
+          const progress = computeLicenseProgress(template, flights, profile, aircraftById)
 
           return (
             <div key={id} className="rounded-lg border border-[var(--border)] p-3">

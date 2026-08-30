@@ -44,7 +44,7 @@ const emptyTotals: Totals = {
 }
 
 export function computeTotals(flights: Flight[]): Totals {
-  return flights.reduce<Totals>((acc, f) => {
+  return flights.filter((f) => !f.voidedAt).reduce<Totals>((acc, f) => {
     acc.totalTime += f.totalTime
     acc.pic += f.pic
     acc.sic += f.sic
@@ -76,7 +76,7 @@ export interface MonthTotals {
 export function computeMonthTotals(flights: Flight[], now: Date = new Date()): MonthTotals {
   const monthKey = now.toISOString().slice(0, 7) // yyyy-mm
   return flights
-    .filter((f) => f.date.slice(0, 7) === monthKey)
+    .filter((f) => !f.voidedAt && f.date.slice(0, 7) === monthKey)
     .reduce<MonthTotals>(
       (acc, f) => {
         acc.hours += f.totalTime
@@ -344,7 +344,9 @@ function computeLandingCurrencyItem(
     level,
     current,
     statusText,
-    detail: `${total} ${opts.unit} in the last ${months} months (need ${opts.required})`,
+    detail: current
+      ? `${total} of ${opts.required} required ${opts.unit} completed in the last ${months} months.`
+      : `${total} of ${opts.required} required ${opts.unit} completed in the last ${months} months; ${opts.required - total} remaining.`,
     fixIt,
     windowStart,
     windowEnd,
@@ -650,8 +652,8 @@ function computePassengerRecencyItems(
         citation: "CAR 401.05(2)(b)(i)(A)",
         windowDays: PASSENGER_WINDOW_DAYS,
         required: 5,
-        unit: "takeoffs & landings",
-        count: (f) => f.dayLandings + f.nightLandings,
+        unit: "completed takeoff/landing pairs",
+        count: (f) => Math.min((f.dayTakeoffs ?? f.dayLandings) + (f.nightTakeoffs ?? f.nightLandings), f.dayLandings + f.nightLandings),
       }),
       computeLandingCurrencyItem(scoped, now, {
         id: `passenger-night${idSuffix}`,
@@ -659,8 +661,8 @@ function computePassengerRecencyItems(
         citation: "CAR 401.05(2)(b)(i)(B)",
         windowDays: PASSENGER_WINDOW_DAYS,
         required: 5,
-        unit: "night takeoffs & landings",
-        count: (f) => f.nightLandings,
+        unit: "completed night takeoff/landing pairs",
+        count: (f) => Math.min(f.nightTakeoffs ?? f.nightLandings, f.nightLandings),
       }),
     ]
   })
@@ -675,6 +677,15 @@ export function computeCarsCurrency(
   aircraftById: Map<string, Aircraft> = new Map(),
   now: Date = new Date(),
 ): CurrencyItem[] {
+  // A void is retained for the legal record, but must never contribute toward
+  // a currency or recency claim.
+  flights = flights.filter((f) => {
+    if (f.voidedAt) return false
+    const kind = aircraftById.get(f.aircraftId)?.recordKind ?? "aircraft"
+    // Simulator/FTD credit depends on approval and exercise details that the
+    // current local model cannot substantiate, so currency is understated.
+    return kind !== "simulator" && kind !== "ftd"
+  })
   const items: CurrencyItem[] = []
 
   items.push(...computePassengerRecencyItems(flights, aircraftById, now))

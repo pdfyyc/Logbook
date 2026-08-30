@@ -1,5 +1,5 @@
 import { Pencil, ShieldCheck, Trash2, Award, Plus } from "lucide-react"
-import type { Flight, MedicalCategory, MedicalPrivilege, PilotProfile, Qualification } from "../types"
+import type { Aircraft, Flight, MedicalCategory, MedicalPrivilege, PilotProfile, Qualification } from "../types"
 import { MEDICAL_PRIVILEGE_LABELS } from "../types"
 import { computeMedicalCurrency, computeIfrRenewalCurrency, computeMedicalValidity } from "../lib/calc"
 import { Card } from "./ui/Card"
@@ -38,6 +38,7 @@ function qualificationSummary(q: Qualification): string {
 interface Props {
   profile: PilotProfile
   flights: Flight[]
+  aircraftById: Map<string, Aircraft>
   onUpdateProfile: (patch: Partial<Omit<PilotProfile, "qualifications">>) => void
   onAddQualification: () => void
   onEditQualification: (qualification: Qualification) => void
@@ -49,6 +50,7 @@ interface Props {
 export function ProfileView({
   profile,
   flights,
+  aircraftById,
   onUpdateProfile,
   onAddQualification,
   onEditQualification,
@@ -72,9 +74,19 @@ export function ProfileView({
           <Input
             value={profile.pilotName}
             onChange={(e) => onUpdateProfile({ pilotName: e.target.value })}
-            placeholder="Captain Sarah Chen"
+            placeholder="Pilot name"
           />
         </Field>
+      </Card>
+
+      <Card className="p-4">
+        <h3 className="mb-3 text-sm font-semibold">Flight-entry defaults</h3>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Home airport"><Input value={profile.homeAirport ?? ""} onChange={(e) => onUpdateProfile({ homeAirport: e.target.value.toUpperCase() })} placeholder="CEN4"/></Field>
+          <Field label="Default role"><Select value={profile.defaultRole ?? ""} onChange={(e) => onUpdateProfile({ defaultRole: e.target.value as PilotProfile["defaultRole"] })}><option value="">Ask each flight</option><option value="pic">PIC</option><option value="copilot">Co-pilot</option><option value="student">Student</option><option value="instructor">Instructor</option><option value="solo-student">Solo student</option><option value="observer">Other / observer</option></Select></Field>
+          <Field label="Frequently used instructor"><Input value={profile.frequentInstructor ?? ""} onChange={(e) => onUpdateProfile({ frequentInstructor: e.target.value })} placeholder="Instructor name"/></Field>
+          <Field label="Frequently used students"><Input value={(profile.frequentStudents ?? []).join(", ")} onChange={(e) => onUpdateProfile({ frequentStudents: e.target.value.split(",").map((name) => name.trim()).filter(Boolean) })} placeholder="Student names"/></Field>
+        </div>
       </Card>
 
       <Card className="p-4">
@@ -143,6 +155,15 @@ export function ProfileView({
             Using your entered date. The table would give {computedMedical.expiry}.
           </p>
         )}
+        {computedMedical && computedMedical.ageAtExam >= 40 && computedMedical.ageAtExam < 60 && profile.medicalPrivilege === "cpl-atpl" && (
+          <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-[var(--text)]">
+            <p><strong>Age 40–59:</strong> the displayed 12-month period applies to CPL/ATPL hire-or-reward privileges when you are not conducting a single-pilot operation with passengers. That operating case is limited to 6 months under CAR 404.04(6.2).</p>
+            <Button className="mt-2" variant="secondary" onClick={() => onUpdateProfile({ medicalPrivilege: "cpl-atpl-single-pilot-pax" })}>Use single-pilot passenger operations (6 months)</Button>
+          </div>
+        )}
+        {computedMedical && profile.medicalPrivilege === "cpl-atpl-single-pilot-pax" && computedMedical.ageAtExam >= 40 && (
+          <p className="mt-2 text-xs text-[var(--text-muted)]">Six-month validity applies because single-pilot passenger operations are selected. CAR 404.04(6.2).</p>
+        )}
       </Card>
 
       <Card className="p-4">
@@ -202,9 +223,10 @@ export function ProfileView({
         )}
       </Card>
 
-      <LicenseProgress
-        flights={flights}
-        profile={profile}
+        <LicenseProgress
+          flights={flights}
+          profile={profile}
+          aircraftById={aircraftById}
         trackedGoals={profile.trackedLicenseGoals}
         onAddGoal={onAddLicenseGoal}
         onRemoveGoal={onRemoveLicenseGoal}

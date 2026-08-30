@@ -17,6 +17,15 @@ export interface Aircraft {
   isTailwheel: boolean
   isTaa: boolean
   notes: string
+  recordKind?: "aircraft" | "simulator" | "ftd" | "historical"
+  nickname?: string
+  favourite?: boolean
+  defaultAircraft?: boolean
+  icaoType?: string
+  usualRole?: "PIC" | "SIC" | "Dual received" | "Instructor" | ""
+  usualDeparture?: string
+  usualPerson?: string
+  archived?: boolean
 }
 
 export interface Flight {
@@ -27,6 +36,7 @@ export interface Flight {
   to: string
   route: string
   totalTime: number
+  dayTime?: number
   pic: number
   sic: number
   solo: number
@@ -36,15 +46,42 @@ export interface Flight {
   night: number
   actualInstrument: number
   simulatedInstrument: number
+  dayTakeoffs?: number
+  nightTakeoffs?: number
   dayLandings: number
   nightLandings: number
   approaches: number
   holds: number
   simTime: number
   remarks: string
+  sourceAircraftText?: string
+  /** The pilot's capacity for this flight. This never determines credited
+   * time by itself; the numeric logging fields remain authoritative. */
+  myRole?: "pic" | "copilot" | "student" | "instructor" | "solo-student" | "observer" | ""
+  legalPicName?: string
+  primaryCrewName?: string
+  primaryCrewRole?: "copilot" | "student" | "safety-pilot" | "other-crew" | ""
+  instructorName?: string
+  passengers?: string[]
+  copilotCreditConfirmed?: boolean
+  /** A void preserves the original entry for audit purposes but excludes it
+   * from all totals, recency, and licence-progress calculations. */
+  voidedAt?: string
+  voidReason?: string
+  amendments?: FlightAmendment[]
 }
 
-export type FlightDraft = Omit<Flight, "id">
+/** Retained before every change to an active record. The snapshot deliberately
+ * excludes audit metadata so amendment history cannot recursively grow. */
+export type FlightSnapshot = Omit<Flight, "id" | "voidedAt" | "voidReason" | "amendments">
+
+export interface FlightAmendment {
+  amendedAt: string
+  reason: string
+  previous: FlightSnapshot
+}
+
+export type FlightDraft = FlightSnapshot
 export type AircraftDraft = Omit<Aircraft, "id">
 
 export type MedicalCategory = "Category 1" | "Category 3" | "Category 4" | "None"
@@ -115,6 +152,10 @@ export type QualificationDraft = Omit<Qualification, "id">
 
 export interface PilotProfile {
   pilotName: string
+  homeAirport?: string
+  defaultRole?: Flight["myRole"]
+  frequentInstructor?: string
+  frequentStudents?: string[]
   dateOfBirth: string // ISO date, "" = not set
   medicalCategory: MedicalCategory
   /** Date of the medical examination or declaration. Validity is measured
@@ -133,6 +174,10 @@ export interface PilotProfile {
 
 export const defaultPilotProfile: PilotProfile = {
   pilotName: "",
+  homeAirport: "",
+  defaultRole: "",
+  frequentInstructor: "",
+  frequentStudents: [],
   dateOfBirth: "",
   medicalCategory: "None",
   medicalExamDate: "",

@@ -1,4 +1,4 @@
-import type { Flight, PilotProfile } from "../types"
+import type { Aircraft, Flight, PilotProfile } from "../types"
 
 export type RequirementUnit = "hours" | "count"
 
@@ -7,7 +7,7 @@ export interface LicenseRequirementItem {
   label: string
   required: number
   unit: RequirementUnit
-  compute: (flights: Flight[]) => number
+  compute: (flights: Flight[], aircraftById?: Map<string, Aircraft>) => number
   /** Set when the computed value is an approximation of what the flight-log
    *  data model can actually express (see the note on solo/dual splitting
    *  below), rather than a direct sum of a single logged field. */
@@ -56,6 +56,14 @@ const picCrossCountry = (fl: Flight[]) => sum(fl.filter((f) => f.pic > 0), (f) =
 
 const instrumentTime = (f: Flight) => f.actualInstrument + f.simulatedInstrument
 
+/** `simTime` is entered as a subset of the entry's total time. It is removed
+ * here so an FTD/simulator entry cannot inflate an ATPL flight-time figure.
+ * This is deliberately conservative until simulator/device details are
+ * modelled separately. */
+const aircraftFlightTime = (f: Flight) => Math.max(0, f.totalTime - f.simTime)
+const isAeroplane = (f: Flight, aircraftById?: Map<string, Aircraft>) =>
+  Boolean(aircraftById?.get(f.aircraftId)?.category.startsWith("A") && !["simulator", "ftd"].includes(aircraftById?.get(f.aircraftId)?.recordKind ?? "aircraft"))
+
 // Standards allow a portion of instrument time as "instrument ground time",
 // but the log doesn't separate instrument ground time from the generic
 // sim/FTD field, so these count in-aircraft instrument time (actual + hood)
@@ -80,7 +88,7 @@ const hrs = (
   id: string,
   label: string,
   required: number,
-  compute: (fl: Flight[]) => number,
+  compute: (fl: Flight[], aircraftById?: Map<string, Aircraft>) => number,
   opts: { approximate?: boolean; sincePpl?: boolean } = {},
 ): LicenseRequirementItem => ({ id, label, required, unit: "hours", compute, ...opts })
 
@@ -207,12 +215,36 @@ export const INSTRUMENT_RATING: LicenseTemplate = {
   ],
 }
 
+/**
+ * Current Standard 421.34(4) is intentionally kept narrow here: only the
+ * minimum flight-time thresholds that this log can substantiate are computed.
+ * The licence, medical, examinations, and skill prerequisites need document
+ * evidence and are presented as review items rather than guessed at.
+ */
+export const ATPL_AEROPLANE: LicenseTemplate = {
+  id: "atpl-aeroplane",
+  name: "Airline Transport Pilot Licence — Aeroplane",
+  citation: "CARs Standard 421.34(4)",
+  manualRequirements: [
+    "Hold a Commercial Pilot Licence — Aeroplane that is not restricted to daylight flying — 421.34(4).",
+    "Hold a valid Category 1 Medical Certificate — 421.34(2).",
+    "Provide evidence of SAMRA, SARON and INRAT knowledge requirements — 421.34(3).",
+    "Provide current multi-engine, two-crew IFR skill evidence (or an accepted PPC/PCC/LOE/MV) — 421.34(5).",
+    "Review the official standard and supporting records before applying. This screen is a readiness aid, not an application determination.",
+  ],
+  items: [
+    hrs("total-flight", "Creditable flight time", 1500, (fl) => sum(fl, aircraftFlightTime)),
+    hrs("aeroplane-flight", "Aeroplane flight time", 900, (fl, aircraftById) => sum(fl.filter((f) => isAeroplane(f, aircraftById)), aircraftFlightTime)),
+  ],
+}
+
 export const LICENSE_TEMPLATES: LicenseTemplate[] = [
   RECREATIONAL_PERMIT,
   PPL_AEROPLANE,
   NIGHT_RATING,
   CPL_AEROPLANE,
   INSTRUMENT_RATING,
+  ATPL_AEROPLANE,
 ]
 
 export function getLicenseTemplate(id: string): LicenseTemplate | undefined {
@@ -254,7 +286,11 @@ export function computeLicenseProgress(
   template: LicenseTemplate,
   flights: Flight[],
   profile: PilotProfile,
+  aircraftById?: Map<string, Aircraft>,
 ): LicenseProgress {
+  // Voided entries remain visible in the logbook but cannot count toward a
+  // licence or rating requirement.
+  flights = flights.filter((f) => !f.voidedAt)
   const pplDate = pplIssueDate(profile)
 
   const items: RequirementProgress[] = template.items.map((item) => {
@@ -273,7 +309,7 @@ export function computeLicenseProgress(
     }
 
     const scoped = item.sincePpl && pplDate ? flights.filter((f) => f.date >= pplDate) : flights
-    const have = item.compute(scoped)
+    const have = item.compute(scoped, aircraftById)
     const met = have >= item.required
     const pct = item.required > 0 ? Math.min(100, Math.round((have / item.required) * 100)) : 100
     return {

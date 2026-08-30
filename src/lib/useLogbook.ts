@@ -1,14 +1,24 @@
 import { useEffect, useMemo, useState } from "react"
-import type { Aircraft, AircraftDraft, Flight, FlightDraft } from "../types"
-import { loadAircraft, loadFlights, saveAircraft, saveFlights } from "./storage"
+import type {
+  Aircraft,
+  AircraftDraft,
+  Flight,
+  FlightDraft,
+  PilotProfile,
+  Qualification,
+  QualificationDraft,
+} from "../types"
+import { loadAircraft, loadFlights, loadProfile, saveAircraft, saveFlights, saveProfile } from "./storage"
 import { newId } from "./id"
 
 export function useLogbook() {
   const [aircraft, setAircraft] = useState<Aircraft[]>(() => loadAircraft())
   const [flights, setFlights] = useState<Flight[]>(() => loadFlights())
+  const [profile, setProfile] = useState<PilotProfile>(() => loadProfile())
 
   useEffect(() => saveAircraft(aircraft), [aircraft])
   useEffect(() => saveFlights(flights), [flights])
+  useEffect(() => saveProfile(profile), [profile])
 
   const aircraftById = useMemo(() => new Map(aircraft.map((a) => [a.id, a])), [aircraft])
 
@@ -40,14 +50,52 @@ export function useLogbook() {
     setFlights((prev) => prev.filter((f) => f.id !== id))
   }
 
-  function replaceAll(nextAircraft: Aircraft[], nextFlights: Flight[]) {
+  function replaceAll(nextAircraft: Aircraft[], nextFlights: Flight[], nextProfile?: PilotProfile) {
     setAircraft(nextAircraft)
     setFlights(nextFlights)
+    if (nextProfile) setProfile(nextProfile)
+  }
+
+  function updateProfile(patch: Partial<Omit<PilotProfile, "qualifications">>) {
+    setProfile((prev) => ({ ...prev, ...patch }))
+  }
+
+  function addQualification(draft: QualificationDraft): Qualification {
+    const created: Qualification = { ...draft, id: newId() }
+    setProfile((prev) => ({ ...prev, qualifications: [...prev.qualifications, created] }))
+    return created
+  }
+
+  function updateQualification(id: string, draft: QualificationDraft) {
+    setProfile((prev) => ({
+      ...prev,
+      qualifications: prev.qualifications.map((q) => (q.id === id ? { ...draft, id } : q)),
+    }))
+  }
+
+  function deleteQualification(id: string) {
+    setProfile((prev) => ({ ...prev, qualifications: prev.qualifications.filter((q) => q.id !== id) }))
+  }
+
+  function addLicenseGoal(templateId: string) {
+    setProfile((prev) =>
+      prev.trackedLicenseGoals.includes(templateId)
+        ? prev
+        : { ...prev, trackedLicenseGoals: [...prev.trackedLicenseGoals, templateId] },
+    )
+  }
+
+  function removeLicenseGoal(templateId: string) {
+    setProfile((prev) => ({
+      ...prev,
+      trackedLicenseGoals: prev.trackedLicenseGoals.filter((id) => id !== templateId),
+    }))
   }
 
   return {
     aircraft,
     flights,
+    profile,
     aircraftById,
     addAircraft,
     updateAircraft,
@@ -56,6 +104,12 @@ export function useLogbook() {
     updateFlight,
     deleteFlight,
     replaceAll,
+    updateProfile,
+    addQualification,
+    updateQualification,
+    deleteQualification,
+    addLicenseGoal,
+    removeLicenseGoal,
   }
 }
 

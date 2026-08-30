@@ -4,13 +4,15 @@ import { Nav, type Tab } from "./components/Nav"
 import { Dashboard } from "./components/Dashboard"
 import { LogbookView } from "./components/LogbookView"
 import { AircraftView } from "./components/AircraftView"
+import { ProfileView } from "./components/ProfileView"
 import { FlightFormModal } from "./components/FlightFormModal"
 import { AircraftFormModal } from "./components/AircraftFormModal"
+import { QualificationFormModal } from "./components/QualificationFormModal"
 import { Button } from "./components/ui/Button"
 import { useLogbook } from "./lib/useLogbook"
 import { loadTheme, saveTheme, exportData, isLogbookExport } from "./lib/storage"
 import { downloadTextFile } from "./lib/csv"
-import type { Aircraft, Flight } from "./types"
+import type { Aircraft, Flight, Qualification } from "./types"
 
 export default function App() {
   const store = useLogbook()
@@ -19,6 +21,7 @@ export default function App() {
 
   const [flightModal, setFlightModal] = useState<null | { editing?: Flight }>(null)
   const [aircraftModal, setAircraftModal] = useState<null | { editing?: Aircraft }>(null)
+  const [qualificationModal, setQualificationModal] = useState<null | { editing?: Qualification }>(null)
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -31,7 +34,7 @@ export default function App() {
       try {
         const parsed = JSON.parse(String(reader.result))
         if (!isLogbookExport(parsed)) throw new Error("Invalid file")
-        store.replaceAll(parsed.aircraft, parsed.flights)
+        store.replaceAll(parsed.aircraft, parsed.flights, parsed.profile)
       } catch {
         window.alert("Could not read that file — expected a Logbook JSON export.")
       }
@@ -53,7 +56,9 @@ export default function App() {
           <Dashboard
             flights={store.flights}
             aircraftById={store.aircraftById}
+            profile={store.profile}
             onAddFlight={() => setFlightModal({})}
+            onViewAllFlights={() => setTab("logbook")}
           />
         )}
 
@@ -90,13 +95,28 @@ export default function App() {
           />
         )}
 
+        {tab === "profile" && (
+          <ProfileView
+            profile={store.profile}
+            flights={store.flights}
+            onUpdateProfile={store.updateProfile}
+            onAddQualification={() => setQualificationModal({})}
+            onEditQualification={(q) => setQualificationModal({ editing: q })}
+            onDeleteQualification={(id) => {
+              if (window.confirm("Delete this qualification?")) store.deleteQualification(id)
+            }}
+            onAddLicenseGoal={store.addLicenseGoal}
+            onRemoveLicenseGoal={store.removeLicenseGoal}
+          />
+        )}
+
         <div className="mt-10 flex justify-center">
           <Button
             variant="ghost"
             onClick={() =>
               downloadTextFile(
                 "logbook-backup.json",
-                JSON.stringify(exportData(store.aircraft, store.flights), null, 2),
+                JSON.stringify(exportData(store.aircraft, store.flights, store.profile), null, 2),
                 "application/json",
               )
             }
@@ -129,6 +149,17 @@ export default function App() {
           onSave={(draft) => {
             if (aircraftModal.editing) store.updateAircraft(aircraftModal.editing.id, draft)
             else store.addAircraft(draft)
+          }}
+        />
+      )}
+
+      {qualificationModal && (
+        <QualificationFormModal
+          initial={qualificationModal.editing}
+          onClose={() => setQualificationModal(null)}
+          onSave={(draft) => {
+            if (qualificationModal.editing) store.updateQualification(qualificationModal.editing.id, draft)
+            else store.addQualification(draft)
           }}
         />
       )}

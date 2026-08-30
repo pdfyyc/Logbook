@@ -1,4 +1,12 @@
-import type { Aircraft, Flight, MedicalPrivilege, PilotProfile, Qualification } from "../types"
+import type {
+  Aircraft,
+  Flight,
+  InstructorClass,
+  MedicalPrivilege,
+  PilotProfile,
+  Qualification,
+  QualificationKind,
+} from "../types"
 import { MEDICAL_PRIVILEGE_LABELS } from "../types"
 
 export interface Totals {
@@ -158,6 +166,15 @@ function findLapseDate(
  *  fixed in a week, so they warn earlier than the flight-by-flight ones. */
 const LONG_LEAD_WARN = { red: 30, yellow: 90 }
 const SHORT_LEAD_WARN = { red: 7, yellow: 30 }
+/** The document booklet is a ~10-year clock, so it needs the longest lead of
+ *  all — you can be well past useful warning before it feels close. */
+const BOOKLET_WARN = { red: 90, yellow: 180 }
+
+/** Per-kind warning leads for qualifications rendered by the generic loop. */
+const QUALIFICATION_WARN: Partial<Record<QualificationKind, { red: number; yellow: number }>> = {
+  "instructor-rating": LONG_LEAD_WARN,
+  "document-booklet": BOOKLET_WARN,
+}
 
 function levelForDaysRemaining(
   daysRemaining: number,
@@ -168,11 +185,51 @@ function levelForDaysRemaining(
   return "green"
 }
 
-/** First day of the month following `dateIso` — Standard 421 measures medical
- *  validity from there, not from the examination date itself. */
-function firstOfNextMonth(dateIso: string): string {
+/** First day of the `months`-th month following the month containing
+ *  `dateIso`. Medical validity runs from month+1; instructor ratings and the
+ *  document booklet expire at month+13/25/37/49 and month+121 respectively. */
+export function firstOfMonthOffset(dateIso: string, months: number): string {
   const d = new Date(dateIso + "T00:00:00Z")
-  return toDateOnly(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)))
+  return toDateOnly(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + months, 1)))
+}
+
+const firstOfNextMonth = (dateIso: string) => firstOfMonthOffset(dateIso, 1)
+
+/** Months after the flight-test month at whose first day each instructor
+ *  rating class expires. */
+export const INSTRUCTOR_RATING_MONTHS: Record<InstructorClass, number> = {
+  "4": 13,
+  "3": 25,
+  "2": 37,
+  "1": 49,
+}
+
+/** CAR 401.12 — the aviation document booklet normally expires on the first
+ *  day of the 121st month. */
+export const DOCUMENT_BOOKLET_MONTHS = 121
+
+/** Single source of truth for the expiry date implied by a qualification's
+ *  kind and completion date, so the form and the currency engine can't drift
+ *  apart. Returns null when the kind carries no derived expiry (either it
+ *  never expires, or the user enters the date by hand). */
+export function derivedQualificationExpiry(
+  kind: QualificationKind,
+  completedOn: string,
+  instructorClass?: InstructorClass,
+): string | null {
+  if (!completedOn) return null
+  switch (kind) {
+    case "instrument-check":
+    case "recurrent-training":
+      return addMonths(completedOn, 24)
+    case "instructor-rating":
+      return firstOfMonthOffset(completedOn, INSTRUCTOR_RATING_MONTHS[instructorClass ?? "4"])
+    case "document-booklet":
+      return firstOfMonthOffset(completedOn, DOCUMENT_BOOKLET_MONTHS)
+    case "ppl-issued":
+    case "other":
+      return null
+  }
 }
 
 function ageOn(dateOfBirth: string, onIso: string): number {
@@ -643,6 +700,7 @@ export function computeCarsCurrency(
         citation: q.citation || "Operator / TC requirement",
         expiry: q.expiry,
         now,
+        thresholds: QUALIFICATION_WARN[q.kind],
       }),
     )
   }

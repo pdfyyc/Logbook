@@ -1,5 +1,6 @@
 import { useState } from "react"
-import type { Qualification, QualificationDraft, QualificationKind } from "../types"
+import type { InstructorClass, Qualification, QualificationDraft, QualificationKind } from "../types"
+import { derivedQualificationExpiry } from "../lib/calc"
 import { Modal } from "./ui/Modal"
 import { Field, Input, Select } from "./ui/Field"
 import { Button } from "./ui/Button"
@@ -35,13 +36,28 @@ function blankFor(kind: QualificationKind): QualificationDraft {
       notes: "",
     }
   }
+  if (kind === "instructor-rating") {
+    return {
+      kind,
+      name: "Flight Instructor Rating — Aeroplane",
+      completedOn: "",
+      expiry: "",
+      citation: "CARs Standard 421.72",
+      notes: "",
+      instructorClass: "4",
+    }
+  }
+  if (kind === "document-booklet") {
+    return {
+      kind,
+      name: "Aviation document booklet",
+      completedOn: "",
+      expiry: "",
+      citation: "CAR 401.12",
+      notes: "",
+    }
+  }
   return { kind, name: "", completedOn: "", expiry: "", citation: "", notes: "" }
-}
-
-function addMonths(dateIso: string, months: number): string {
-  const d = new Date(dateIso + "T00:00:00")
-  d.setMonth(d.getMonth() + months)
-  return d.toISOString().slice(0, 10)
 }
 
 interface Props {
@@ -64,9 +80,11 @@ export function QualificationFormModal({ initial, onSave, onClose }: Props) {
   const isCheck = draft.kind === "instrument-check"
   const isPpl = draft.kind === "ppl-issued"
   const isRecurrent = draft.kind === "recurrent-training"
-  const usesCompletionDate = isCheck || isPpl || isRecurrent
+  const isInstructor = draft.kind === "instructor-rating"
+  const isBooklet = draft.kind === "document-booklet"
+  const usesCompletionDate = isCheck || isPpl || isRecurrent || isInstructor || isBooklet
   const computedExpiry =
-    (isCheck || isRecurrent) && draft.completedOn ? addMonths(draft.completedOn, 24) : ""
+    derivedQualificationExpiry(draft.kind, draft.completedOn, draft.instructorClass) ?? ""
   const canSave = draft.name.trim().length > 0 && (!usesCompletionDate || draft.completedOn.length > 0)
 
   return (
@@ -81,7 +99,9 @@ export function QualificationFormModal({ initial, onSave, onClose }: Props) {
           <Button
             disabled={!canSave}
             onClick={() => {
-              onSave({ ...draft, expiry: isCheck ? computedExpiry : draft.expiry })
+              // Kinds with a derived expiry always store the computed date;
+              // the rest keep whatever the user typed.
+              onSave({ ...draft, expiry: computedExpiry || draft.expiry })
               onClose()
             }}
           >
@@ -97,6 +117,8 @@ export function QualificationFormModal({ initial, onSave, onClose }: Props) {
             <option value="instrument-check">Instrument rating flight test / IPC (CAR 401.05(3))</option>
             <option value="ppl-issued">Private Pilot Licence issued (scopes CPL progress)</option>
             <option value="recurrent-training">Recurrent training program (CAR 401.05(2)(a))</option>
+            <option value="instructor-rating">Flight instructor rating (Standard 421.72)</option>
+            <option value="document-booklet">Aviation document booklet (CAR 401.12)</option>
           </Select>
         </Field>
 
@@ -111,7 +133,17 @@ export function QualificationFormModal({ initial, onSave, onClose }: Props) {
 
         {usesCompletionDate ? (
           <>
-            <Field label={isPpl ? "Date licence issued" : "Date completed"}>
+            <Field
+              label={
+                isPpl
+                  ? "Date licence issued"
+                  : isBooklet
+                    ? "Date booklet issued"
+                    : isInstructor
+                      ? "Flight test date"
+                      : "Date completed"
+              }
+            >
               <Input type="date" value={draft.completedOn} onChange={(e) => set("completedOn", e.target.value)} />
             </Field>
             {computedExpiry && isCheck && (
@@ -123,6 +155,32 @@ export function QualificationFormModal({ initial, onSave, onClose }: Props) {
             {computedExpiry && isRecurrent && (
               <p className="text-xs text-[var(--text-muted)]">
                 Next due {computedExpiry} (24 months later, per CAR 401.05(2)(a)).
+              </p>
+            )}
+            {isInstructor && (
+              <Field label="Class">
+                <Select
+                  value={draft.instructorClass ?? "4"}
+                  onChange={(e) => set("instructorClass", e.target.value as InstructorClass)}
+                >
+                  <option value="4">Class 4</option>
+                  <option value="3">Class 3</option>
+                  <option value="2">Class 2</option>
+                  <option value="1">Class 1</option>
+                </Select>
+              </Field>
+            )}
+            {computedExpiry && isInstructor && (
+              <p className="text-xs text-[var(--text-muted)]">
+                Valid to {computedExpiry} — the first day of the{" "}
+                {{ "4": "13th", "3": "25th", "2": "37th", "1": "49th" }[draft.instructorClass ?? "4"]} month
+                following the flight-test month.
+              </p>
+            )}
+            {computedExpiry && isBooklet && (
+              <p className="text-xs text-[var(--text-muted)]">
+                Normally valid to {computedExpiry} — the first day of the 121st month, per CAR 401.12. Renew the
+                booklet before it expires.
               </p>
             )}
             {isPpl && (

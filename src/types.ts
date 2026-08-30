@@ -78,10 +78,24 @@ export const MEDICAL_PRIVILEGE_LABELS: Record<MedicalPrivilege, string> = {
 //     (Standard 421.30(4)(a)(ii)). Carries no expiry.
 //   "recurrent-training" — CAR 401.05(2)(a)'s accepted recurrent training
 //     program, due every 24 months from the completion date.
+//   "instructor-rating" — an aeroplane flight instructor rating, expiring on
+//     the first day of the 13th/25th/37th/49th month following the
+//     flight-test month for Class 4/3/2/1 respectively.
+//   "document-booklet" — the aviation document booklet, normally expiring on
+//     the first day of the 121st month under CAR 401.12.
 // Everything else ("other") is a freeform qualification: a PPC, an instructor
 // rating, an endorsement, a company OPS-spec renewal — tracked for its
 // expiry, but not otherwise understood by the engines.
-export type QualificationKind = "instrument-check" | "ppl-issued" | "recurrent-training" | "other"
+export type QualificationKind =
+  | "instrument-check"
+  | "ppl-issued"
+  | "recurrent-training"
+  | "instructor-rating"
+  | "document-booklet"
+  | "other"
+
+/** Flight instructor rating class — sets how long the rating stays valid. */
+export type InstructorClass = "1" | "2" | "3" | "4"
 
 export interface Qualification {
   id: string
@@ -93,6 +107,8 @@ export interface Qualification {
   expiry: string // ISO date, "" = no expiry tracked
   citation: string
   notes: string
+  /** Only meaningful for "instructor-rating", where it drives the expiry. */
+  instructorClass?: InstructorClass
 }
 
 export type QualificationDraft = Omit<Qualification, "id">

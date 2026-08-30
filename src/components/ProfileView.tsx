@@ -15,6 +15,26 @@ function badgeTone(level: "green" | "yellow" | "red") {
   return level === "green" ? "success" : level === "yellow" ? "warning" : "danger"
 }
 
+/** One-line status under a qualification's name, worded for its kind. */
+function qualificationSummary(q: Qualification): string {
+  switch (q.kind) {
+    case "ppl-issued":
+      return q.completedOn ? `Issued ${q.completedOn} · doesn't expire` : "Issue date not set"
+    case "instrument-check":
+      return q.completedOn ? `Completed ${q.completedOn} · renews ${q.expiry}` : "Completion date not set"
+    case "recurrent-training":
+      return q.completedOn ? `Completed ${q.completedOn} · next due ${q.expiry}` : "Completion date not set"
+    case "instructor-rating":
+      return q.completedOn
+        ? `Class ${q.instructorClass ?? "4"} · flight test ${q.completedOn} · valid to ${q.expiry}`
+        : "Flight test date not set"
+    case "document-booklet":
+      return q.completedOn ? `Issued ${q.completedOn} · expires ${q.expiry}` : "Issue date not set"
+    case "other":
+      return q.expiry ? `Expires ${q.expiry}` : "No expiry tracked"
+  }
+}
+
 interface Props {
   profile: PilotProfile
   flights: Flight[]
@@ -156,17 +176,7 @@ export function ProfileView({
                 <div className="min-w-0">
                   <div className="font-medium text-[var(--text)]">{q.name}</div>
                   <div className="truncate text-xs text-[var(--text-muted)]">
-                    {q.kind === "instrument-check" || q.kind === "recurrent-training"
-                      ? q.completedOn
-                        ? `Completed ${q.completedOn} · ${q.kind === "recurrent-training" ? "next due" : "renews"} ${q.expiry}`
-                        : "Completion date not set"
-                      : q.kind === "ppl-issued"
-                        ? q.completedOn
-                          ? `Issued ${q.completedOn} · doesn't expire`
-                          : "Issue date not set"
-                        : q.expiry
-                          ? `Expires ${q.expiry}`
-                          : "No expiry tracked"}
+                    {qualificationSummary(q)}
                     {q.citation ? ` · ${q.citation}` : ""}
                   </div>
                 </div>

@@ -25,6 +25,16 @@ function blankFor(kind: QualificationKind): QualificationDraft {
       notes: "",
     }
   }
+  if (kind === "recurrent-training") {
+    return {
+      kind,
+      name: "Recurrent training program",
+      completedOn: "",
+      expiry: "",
+      citation: "CAR 401.05(2)(a)",
+      notes: "",
+    }
+  }
   return { kind, name: "", completedOn: "", expiry: "", citation: "", notes: "" }
 }
 
@@ -53,8 +63,10 @@ export function QualificationFormModal({ initial, onSave, onClose }: Props) {
 
   const isCheck = draft.kind === "instrument-check"
   const isPpl = draft.kind === "ppl-issued"
-  const usesCompletionDate = isCheck || isPpl
-  const computedExpiry = isCheck && draft.completedOn ? addMonths(draft.completedOn, 24) : ""
+  const isRecurrent = draft.kind === "recurrent-training"
+  const usesCompletionDate = isCheck || isPpl || isRecurrent
+  const computedExpiry =
+    (isCheck || isRecurrent) && draft.completedOn ? addMonths(draft.completedOn, 24) : ""
   const canSave = draft.name.trim().length > 0 && (!usesCompletionDate || draft.completedOn.length > 0)
 
   return (
@@ -84,6 +96,7 @@ export function QualificationFormModal({ initial, onSave, onClose }: Props) {
             <option value="other">Rating / endorsement / recurrent training</option>
             <option value="instrument-check">Instrument rating flight test / IPC (CAR 401.05(3))</option>
             <option value="ppl-issued">Private Pilot Licence issued (scopes CPL progress)</option>
+            <option value="recurrent-training">Recurrent training program (CAR 401.05(2)(a))</option>
           </Select>
         </Field>
 
@@ -101,10 +114,15 @@ export function QualificationFormModal({ initial, onSave, onClose }: Props) {
             <Field label={isPpl ? "Date licence issued" : "Date completed"}>
               <Input type="date" value={draft.completedOn} onChange={(e) => set("completedOn", e.target.value)} />
             </Field>
-            {computedExpiry && (
+            {computedExpiry && isCheck && (
               <p className="text-xs text-[var(--text-muted)]">
                 Renewal due {computedExpiry} (24 months later, per CAR 401.05(3)) — also starts the 6-month grace
                 period before the CAR 401.05(3.1) approach-recency rule applies.
+              </p>
+            )}
+            {computedExpiry && isRecurrent && (
+              <p className="text-xs text-[var(--text-muted)]">
+                Next due {computedExpiry} (24 months later, per CAR 401.05(2)(a)).
               </p>
             )}
             {isPpl && (

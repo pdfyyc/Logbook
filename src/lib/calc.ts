@@ -1,4 +1,5 @@
-import type { Flight, PilotProfile, Qualification } from "../types"
+import type { Aircraft, Flight, MedicalPrivilege, PilotProfile, Qualification } from "../types"
+import { MEDICAL_PRIVILEGE_LABELS } from "../types"
 
 export interface Totals {
   totalTime: number
@@ -153,10 +154,71 @@ function findLapseDate(
   return null
 }
 
-function levelForDaysRemaining(daysRemaining: number): CurrencyLevel {
-  if (daysRemaining <= 7) return "red"
-  if (daysRemaining <= 30) return "yellow"
+/** Long-lead items (medical, instrument check, recurrent training) can't be
+ *  fixed in a week, so they warn earlier than the flight-by-flight ones. */
+const LONG_LEAD_WARN = { red: 30, yellow: 90 }
+const SHORT_LEAD_WARN = { red: 7, yellow: 30 }
+
+function levelForDaysRemaining(
+  daysRemaining: number,
+  thresholds: { red: number; yellow: number } = SHORT_LEAD_WARN,
+): CurrencyLevel {
+  if (daysRemaining <= thresholds.red) return "red"
+  if (daysRemaining <= thresholds.yellow) return "yellow"
   return "green"
+}
+
+/** First day of the month following `dateIso` — Standard 421 measures medical
+ *  validity from there, not from the examination date itself. */
+function firstOfNextMonth(dateIso: string): string {
+  const d = new Date(dateIso + "T00:00:00Z")
+  return toDateOnly(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1)))
+}
+
+function ageOn(dateOfBirth: string, onIso: string): number {
+  const dob = new Date(dateOfBirth + "T00:00:00Z")
+  const on = new Date(onIso + "T00:00:00Z")
+  let age = on.getUTCFullYear() - dob.getUTCFullYear()
+  const beforeBirthday =
+    on.getUTCMonth() < dob.getUTCMonth() ||
+    (on.getUTCMonth() === dob.getUTCMonth() && on.getUTCDate() < dob.getUTCDate())
+  if (beforeBirthday) age -= 1
+  return age
+}
+
+/** Standard 421 medical validity table, by privilege exercised and age at
+ *  examination. */
+export function medicalValidityMonths(privilege: MedicalPrivilege, ageAtExam: number): number {
+  switch (privilege) {
+    case "ulp":
+    case "spp":
+      return 60
+    case "ppl":
+    case "rpp":
+      return ageAtExam >= 40 ? 24 : 60
+    case "cpl-atpl":
+      return ageAtExam >= 60 ? 6 : 12
+    case "cpl-atpl-single-pilot-pax":
+      return ageAtExam >= 40 ? 6 : 12
+  }
+}
+
+export interface MedicalValidity {
+  expiry: string
+  months: number
+  ageAtExam: number
+  validFrom: string
+}
+
+/** Computes the medical's valid-to date from the exam date, the pilot's age
+ *  at examination and the privilege exercised. Returns null when the profile
+ *  is missing the exam date or date of birth. */
+export function computeMedicalValidity(profile: PilotProfile): MedicalValidity | null {
+  if (!profile.medicalExamDate || !profile.dateOfBirth) return null
+  const ageAtExam = ageOn(profile.dateOfBirth, profile.medicalExamDate)
+  const months = medicalValidityMonths(profile.medicalPrivilege, ageAtExam)
+  const validFrom = firstOfNextMonth(profile.medicalExamDate)
+  return { expiry: addMonths(validFrom, months), months, ageAtExam, validFrom }
 }
 
 interface LandingCurrencyOptions {
@@ -333,6 +395,8 @@ interface ExpiryCurrencyOptions {
   expiry: string
   now: Date
   emptyMessage?: string
+  emptyFixIt?: string
+  thresholds?: { red: number; yellow: number }
 }
 
 function computeExpiryCurrencyItem(opts: ExpiryCurrencyOptions): CurrencyItem {
@@ -345,7 +409,7 @@ function computeExpiryCurrencyItem(opts: ExpiryCurrencyOptions): CurrencyItem {
       current: false,
       statusText: "Not set",
       detail: opts.emptyMessage ?? "No expiry date on file.",
-      fixIt: "Add the expiry date in your Profile to track this automatically.",
+      fixIt: opts.emptyFixIt ?? "Add the expiry date in your Profile to track this automatically.",
       windowStart: null,
       windowEnd: null,
       qualifying: [],
@@ -354,7 +418,7 @@ function computeExpiryCurrencyItem(opts: ExpiryCurrencyOptions): CurrencyItem {
 
   const daysRemaining = daysUntil(opts.expiry, opts.now)
   const current = daysRemaining >= 0
-  const level: CurrencyLevel = !current ? "red" : levelForDaysRemaining(daysRemaining)
+  const level: CurrencyLevel = !current ? "red" : levelForDaysRemaining(daysRemaining, opts.thresholds)
 
   return {
     id: opts.id,
@@ -376,16 +440,89 @@ function computeExpiryCurrencyItem(opts: ExpiryCurrencyOptions): CurrencyItem {
 }
 
 export function computeMedicalCurrency(profile: PilotProfile, now: Date = new Date()): CurrencyItem {
-  return computeExpiryCurrencyItem({
+  const computed = computeMedicalValidity(profile)
+  // A manually entered valid-to date always wins: the certificate itself, and
+  // any shorter period the Minister endorses on it, control over the table.
+  const expiry = profile.medicalExpiry || computed?.expiry || ""
+
+  const item = computeExpiryCurrencyItem({
     id: "medical",
     label:
       profile.medicalCategory !== "None"
         ? `Medical certificate (${profile.medicalCategory})`
         : "Medical certificate",
     citation: "CAR 404.03 / 404.04",
-    expiry: profile.medicalExpiry,
+    expiry,
     now,
-    emptyMessage: "Add your medical expiry date in Profile to track this automatically.",
+    thresholds: LONG_LEAD_WARN,
+    emptyMessage: "No valid-to date on file.",
+    emptyFixIt:
+      "Add your date of birth and medical exam date in Profile to calculate it, or enter the valid-to date printed on the certificate.",
+  })
+
+  if (!expiry || profile.medicalExpiry || !computed) return item
+  return {
+    ...item,
+    detail: `${item.detail} — ${computed.months} months for ${MEDICAL_PRIVILEGE_LABELS[profile.medicalPrivilege]} at age ${computed.ageAtExam}, from ${computed.validFrom}`,
+  }
+}
+
+/** CAR 401.05(1): must have acted as PIC or co-pilot within the previous five
+ *  years. Simulator-based Part VII recurrent programs can also satisfy this,
+ *  which the log can't see — noted in the fix-it text rather than assumed. */
+export function computeFiveYearRecency(flights: Flight[], now: Date = new Date()): CurrencyItem {
+  const WINDOW_DAYS = 365 * 5
+  const qualifying = flights
+    .filter((f) => (f.pic > 0 || f.sic > 0) && daysAgo(f.date, now) >= 0 && daysAgo(f.date, now) <= WINDOW_DAYS)
+    .sort((a, b) => b.date.localeCompare(a.date))
+
+  const mostRecent = qualifying[0]
+  const current = Boolean(mostRecent)
+  const lapseDate = mostRecent ? addDays(mostRecent.date, WINDOW_DAYS) : null
+  const daysRemaining = lapseDate ? daysUntil(lapseDate, now) : 0
+
+  return {
+    id: "five-year-recency",
+    label: "Acted as PIC or co-pilot (5 years)",
+    citation: "CAR 401.05(1)",
+    level: current ? levelForDaysRemaining(daysRemaining, LONG_LEAD_WARN) : "red",
+    current,
+    statusText: current ? "Current" : "Not current",
+    detail: mostRecent
+      ? `Most recent PIC or co-pilot flight ${mostRecent.date} — lapses ${lapseDate}`
+      : "No PIC or co-pilot time logged in the last 5 years.",
+    fixIt: current
+      ? "No action needed — any PIC or co-pilot flight resets the 5-year window."
+      : "Fly as PIC or co-pilot, or complete an approved Part VII recurrent program in an eligible Level C/D simulator. Otherwise a flight review, logbook certification and written exam are required.",
+    windowStart: addDays(toDateOnly(now), -WINDOW_DAYS),
+    windowEnd: toDateOnly(now),
+    qualifying: mostRecent
+      ? [{ flightId: mostRecent.id, date: mostRecent.date, note: "most recent PIC/co-pilot flight" }]
+      : [],
+  }
+}
+
+/** CAR 401.05(2)(a): an accepted recurrent training program within the
+ *  previous 24 months, from a "recurrent-training" qualification. */
+export function computeRecurrentTrainingCurrency(
+  profile: PilotProfile,
+  now: Date = new Date(),
+): CurrencyItem {
+  const latest = profile.qualifications
+    .filter((q) => q.kind === "recurrent-training" && q.completedOn)
+    .map((q) => q.completedOn)
+    .sort()
+    .pop()
+
+  return computeExpiryCurrencyItem({
+    id: "recurrent-training",
+    label: "Recurrent training (24 months)",
+    citation: "CAR 401.05(2)(a)",
+    expiry: latest ? addMonths(latest, 24) : "",
+    now,
+    thresholds: LONG_LEAD_WARN,
+    emptyMessage: "No recurrent training completion date on file.",
+    emptyFixIt: "Add your last recurrent training completion date under Profile → Qualifications.",
   })
 }
 
@@ -406,7 +543,69 @@ export function computeIfrRenewalCurrency(profile: PilotProfile, now: Date = new
     citation: "CAR 401.05(3)",
     expiry: check ? addMonths(check.completedOn, 24) : "",
     now,
-    emptyMessage: "Add your last instrument rating flight test or IPC date under Profile → Qualifications.",
+    thresholds: LONG_LEAD_WARN,
+    emptyMessage: "No instrument flight test or IPC date on file.",
+    emptyFixIt: "Add your last instrument rating flight test or IPC date under Profile → Qualifications.",
+  })
+}
+
+const PASSENGER_WINDOW_DAYS = 182
+/** Categories flown within this window get their own passenger-recency rows —
+ *  wide enough to keep a recently-lapsed category visible, narrow enough not
+ *  to clutter the dashboard with types the pilot has moved on from. */
+const CATEGORY_RELEVANCE_DAYS = 365
+
+/** CAR 401.05(2)(b) requires the takeoffs and landings to be in the same
+ *  category and class of aircraft, so landings can't be pooled across the
+ *  fleet — a single-engine landing does nothing for multi-engine passenger
+ *  recency. This emits a day and a night row per category actually flown. */
+function computePassengerRecencyItems(
+  flights: Flight[],
+  aircraftById: Map<string, Aircraft>,
+  now: Date,
+): CurrencyItem[] {
+  const categoryOf = (f: Flight) => aircraftById.get(f.aircraftId)?.category ?? "Unknown aircraft"
+
+  const recentCategories = [
+    ...new Set(
+      flights
+        .filter((f) => {
+          const age = daysAgo(f.date, now)
+          return age >= 0 && age <= CATEGORY_RELEVANCE_DAYS && f.dayLandings + f.nightLandings > 0
+        })
+        .map(categoryOf),
+    ),
+  ].sort()
+
+  // Nothing flown recently — fall back to one un-scoped pair so the dashboard
+  // still states the requirement rather than showing nothing at all.
+  const categories = recentCategories.length > 0 ? recentCategories : [null]
+
+  return categories.flatMap((category) => {
+    const scoped = category === null ? flights : flights.filter((f) => categoryOf(f) === category)
+    const suffix = category === null ? "" : ` — ${category}`
+    const idSuffix = category === null ? "" : `-${category.toLowerCase().replace(/\s+/g, "-")}`
+
+    return [
+      computeLandingCurrencyItem(scoped, now, {
+        id: `passenger-day${idSuffix}`,
+        label: `Passenger-carrying — day${suffix}`,
+        citation: "CAR 401.05(2)(b)(i)(A)",
+        windowDays: PASSENGER_WINDOW_DAYS,
+        required: 5,
+        unit: "takeoffs & landings",
+        count: (f) => f.dayLandings + f.nightLandings,
+      }),
+      computeLandingCurrencyItem(scoped, now, {
+        id: `passenger-night${idSuffix}`,
+        label: `Passenger-carrying — night${suffix}`,
+        citation: "CAR 401.05(2)(b)(i)(B)",
+        windowDays: PASSENGER_WINDOW_DAYS,
+        required: 5,
+        unit: "night takeoffs & landings",
+        count: (f) => f.nightLandings,
+      }),
+    ]
   })
 }
 
@@ -416,43 +615,26 @@ export function computeIfrRenewalCurrency(profile: PilotProfile, now: Date = new
 export function computeCarsCurrency(
   flights: Flight[],
   profile: PilotProfile,
+  aircraftById: Map<string, Aircraft> = new Map(),
   now: Date = new Date(),
 ): CurrencyItem[] {
   const items: CurrencyItem[] = []
 
-  items.push(
-    computeLandingCurrencyItem(flights, now, {
-      id: "passenger-day",
-      label: "Passenger-carrying — day",
-      citation: "CAR 401.05(2)(b)(i)(A)",
-      windowDays: 182,
-      required: 5,
-      unit: "takeoffs & landings",
-      count: (f) => f.dayLandings + f.nightLandings,
-    }),
-  )
-
-  items.push(
-    computeLandingCurrencyItem(flights, now, {
-      id: "passenger-night",
-      label: "Passenger-carrying — night",
-      citation: "CAR 401.05(2)(b)(i)(B)",
-      windowDays: 182,
-      required: 5,
-      unit: "night takeoffs & landings",
-      count: (f) => f.nightLandings,
-    }),
-  )
+  items.push(...computePassengerRecencyItems(flights, aircraftById, now))
 
   const latestCheck = latestInstrumentCheck(profile)
   const graceUntil = latestCheck ? addMonths(latestCheck.completedOn, 6) : null
   items.push(computeIfrCurrencyItem(flights, now, graceUntil))
   items.push(computeIfrRenewalCurrency(profile, now))
 
+  items.push(computeFiveYearRecency(flights, now))
+  items.push(computeRecurrentTrainingCurrency(profile, now))
   items.push(computeMedicalCurrency(profile, now))
 
   for (const q of profile.qualifications) {
-    if (q.kind === "instrument-check") continue // surfaced via the dedicated IFR renewal item above
+    // Kinds with their own dedicated currency items above, or that carry no
+    // expiry at all, aren't repeated here.
+    if (q.kind === "instrument-check" || q.kind === "recurrent-training" || q.kind === "ppl-issued") continue
     if (!q.expiry) continue // no expiry to track — informational only, not a currency risk
     items.push(
       computeExpiryCurrencyItem({

@@ -43,7 +43,7 @@ function formatShortDate(iso: string): string {
 export function Dashboard({ flights, aircraftById, profile, onAddFlight, onViewAllFlights }: Props) {
   const totals = computeTotals(flights)
   const month = computeMonthTotals(flights)
-  const currency = computeCarsCurrency(flights, profile)
+  const currency = computeCarsCurrency(flights, profile, aircraftById)
   const name = profile.pilotName || "Pilot"
 
   const recent = flights

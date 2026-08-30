@@ -1,6 +1,7 @@
 import { Pencil, ShieldCheck, Trash2, Award, Plus } from "lucide-react"
-import type { Flight, MedicalCategory, PilotProfile, Qualification } from "../types"
-import { computeMedicalCurrency, computeIfrRenewalCurrency } from "../lib/calc"
+import type { Flight, MedicalCategory, MedicalPrivilege, PilotProfile, Qualification } from "../types"
+import { MEDICAL_PRIVILEGE_LABELS } from "../types"
+import { computeMedicalCurrency, computeIfrRenewalCurrency, computeMedicalValidity } from "../lib/calc"
 import { Card } from "./ui/Card"
 import { Field, Input, Select } from "./ui/Field"
 import { Badge } from "./ui/Badge"
@@ -37,6 +38,7 @@ export function ProfileView({
 }: Props) {
   const medicalItem = computeMedicalCurrency(profile)
   const ifrRenewalItem = computeIfrRenewalCurrency(profile)
+  const computedMedical = computeMedicalValidity(profile)
 
   return (
     <div className="space-y-4">
@@ -74,15 +76,53 @@ export function ProfileView({
               ))}
             </Select>
           </Field>
-          <Field label="Expiry date">
+          <Field label="Privilege being exercised">
+            <Select
+              value={profile.medicalPrivilege}
+              onChange={(e) => onUpdateProfile({ medicalPrivilege: e.target.value as MedicalPrivilege })}
+            >
+              {(Object.keys(MEDICAL_PRIVILEGE_LABELS) as MedicalPrivilege[]).map((p) => (
+                <option key={p} value={p}>
+                  {MEDICAL_PRIVILEGE_LABELS[p]}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Date of birth">
+            <Input
+              type="date"
+              value={profile.dateOfBirth}
+              onChange={(e) => onUpdateProfile({ dateOfBirth: e.target.value })}
+            />
+          </Field>
+          <Field label="Medical exam date">
+            <Input
+              type="date"
+              value={profile.medicalExamDate}
+              onChange={(e) => onUpdateProfile({ medicalExamDate: e.target.value })}
+            />
+          </Field>
+          <Field label="Valid-to date (overrides the calculation)" className="sm:col-span-2">
             <Input
               type="date"
               value={profile.medicalExpiry}
               onChange={(e) => onUpdateProfile({ medicalExpiry: e.target.value })}
+              placeholder={computedMedical?.expiry ?? ""}
             />
           </Field>
         </div>
         <p className="mt-2 text-xs text-[var(--text-muted)]">{medicalItem.detail}</p>
+        {computedMedical && !profile.medicalExpiry && (
+          <p className="mt-1 text-[10px] text-[var(--text-muted)]">
+            Calculated from the Standard 421 validity table. Always enter the valid-to date printed on the
+            certificate if it differs — a Minister-endorsed shorter period or any limitation controls.
+          </p>
+        )}
+        {computedMedical && profile.medicalExpiry && profile.medicalExpiry !== computedMedical.expiry && (
+          <p className="mt-1 text-[10px] text-amber-500">
+            Using your entered date. The table would give {computedMedical.expiry}.
+          </p>
+        )}
       </Card>
 
       <Card className="p-4">
@@ -116,9 +156,9 @@ export function ProfileView({
                 <div className="min-w-0">
                   <div className="font-medium text-[var(--text)]">{q.name}</div>
                   <div className="truncate text-xs text-[var(--text-muted)]">
-                    {q.kind === "instrument-check"
+                    {q.kind === "instrument-check" || q.kind === "recurrent-training"
                       ? q.completedOn
-                        ? `Completed ${q.completedOn} · renews ${q.expiry}`
+                        ? `Completed ${q.completedOn} · ${q.kind === "recurrent-training" ? "next due" : "renews"} ${q.expiry}`
                         : "Completion date not set"
                       : q.kind === "ppl-issued"
                         ? q.completedOn

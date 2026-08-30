@@ -15,6 +15,9 @@ export interface LicenseTemplate {
   id: string
   name: string
   citation: string
+  /** Requirements the regulation imposes that can't be computed from logged
+   *  hours alone — shown to the student as a manual checklist. */
+  manualRequirements: string[]
   items: LicenseRequirementItem[]
 }
 
@@ -43,6 +46,11 @@ function dualCrossCountry(flights: Flight[]): number {
   )
 }
 
+// 421.26(4)(b)(i) allows a maximum of 3 of the 5 instrument hours to be
+// "instrument ground time". The log doesn't distinguish instrument ground
+// time from the generic sim/FTD field, so this counts in-aircraft instrument
+// time only (actual + simulated-in-aircraft, i.e. hood time) — a student
+// relying on ground time toward this item should confirm it separately.
 function dualInstrument(flights: Flight[]): number {
   return sum(
     flights.filter((f) => f.dualReceived > 0),
@@ -50,19 +58,40 @@ function dualInstrument(flights: Flight[]): number {
   )
 }
 
-// Recalled from memory, not verified against the current Standard 421 text —
-// this sandbox couldn't reach any regulatory source to confirm it (same
-// issue that produced a wrong IFR-recency citation earlier in this app's
-// history, corrected only once the actual CAR 401.05 text was supplied).
-// Treat every number here as a planning estimate, not a source of truth for
-// a flight test application — confirm with your flight school or the
-// current Standard 421 before relying on it.
+const MAX_SIM_HOURS_TOWARD_TOTAL = 5
+
+// 421.26(4)(a): of the 45 hours, at most 5 may be flown on an approved
+// simulator or flight training device. The flight form requires a total time
+// on every entry, so sim/FTD hours are assumed to be included in totalTime;
+// this subtracts back off any sim time beyond the 5-hour allowance rather
+// than adding it in (which would double-count).
+function creditedTotalTime(flights: Flight[]): number {
+  const total = sum(flights, (f) => f.totalTime)
+  const simExcess = Math.max(0, sum(flights, (f) => f.simTime) - MAX_SIM_HOURS_TOWARD_TOTAL)
+  return Math.max(0, total - simExcess)
+}
+
+// Verified against the Transport Canada Standard 421 text supplied by the
+// user — Standard 421.26(4), "Private Pilot Licence — Aeroplanes,
+// Requirements: Experience". Still worth confirming against the current
+// published standard before a flight test application, since amendments do
+// happen (the source document carries entries as recent as 2025).
 export const PPL_AEROPLANE: LicenseTemplate = {
   id: "ppl-aeroplane",
   name: "Private Pilot Licence — Aeroplane",
-  citation: "CARs Standard 421 — PPL (Aeroplane) minimum experience — UNVERIFIED, see disclaimer",
+  citation: "CARs Standard 421.26(4)",
+  manualRequirements: [
+    "One solo cross-country flight of at least 150 nautical miles, including 2 full-stop landings at points other than the point of departure — 421.26(4)(b)(ii). The log doesn't record distances, so tick this off yourself.",
+    "All 45 hours must be flown under the direction and supervision of the holder of a Flight Instructor Rating — Aeroplane — 421.26(4)(a).",
+  ],
   items: [
-    { id: "total", label: "Total flight time", requiredHours: 45, compute: (fl) => sum(fl, (f) => f.totalTime) },
+    {
+      id: "total",
+      label: "Total flight training time",
+      requiredHours: 45,
+      compute: creditedTotalTime,
+      approximate: true,
+    },
     { id: "dual", label: "Dual instruction time", requiredHours: 17, compute: (fl) => sum(fl, (f) => f.dualReceived) },
     { id: "solo", label: "Solo flight time", requiredHours: 12, compute: (fl) => sum(fl, (f) => f.solo) },
     {
@@ -74,7 +103,7 @@ export const PPL_AEROPLANE: LicenseTemplate = {
     },
     {
       id: "dual-instrument",
-      label: "Instrument time (dual)",
+      label: "Instrument time (within dual)",
       requiredHours: 5,
       compute: dualInstrument,
       approximate: true,

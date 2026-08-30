@@ -1,4 +1,4 @@
-import { AlertTriangle, Award, GraduationCap, Trash2 } from "lucide-react"
+import { Award, GraduationCap, Square, Trash2 } from "lucide-react"
 import type { Flight } from "../types"
 import { LICENSE_TEMPLATES, computeLicenseProgress, getLicenseTemplate } from "../lib/licenseRequirements"
 import { formatHours } from "../lib/calc"
@@ -21,10 +21,9 @@ export function LicenseProgress({ flights, trackedGoals, onAddGoal, onRemoveGoal
         <GraduationCap size={16} className="text-[var(--accent)]" />
         <h3 className="text-sm font-semibold text-[var(--text)]">Licence & rating progress</h3>
       </div>
-      <p className="mb-3 flex items-start gap-1.5 text-xs text-[var(--text-muted)]">
-        <AlertTriangle size={13} className="mt-0.5 shrink-0 text-amber-500" />
-        Hour requirements below are recalled from memory, not verified against the current Standard 421 text —
-        confirm with your flight school before relying on this for a flight test application.
+      <p className="mb-3 text-xs text-[var(--text-muted)]">
+        Hour requirements are taken from the Transport Canada standard cited on each licence below. Standards are
+        amended from time to time — confirm against the current published text before a flight test application.
       </p>
 
       {trackedGoals.length === 0 && (
@@ -43,8 +42,13 @@ export function LicenseProgress({ flights, trackedGoals, onAddGoal, onRemoveGoal
             <div key={id} className="rounded-lg border border-[var(--border)] p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <Award size={14} className="text-[var(--accent)]" />
-                  <span className="text-sm font-semibold text-[var(--text)]">{template.name}</span>
+                  <Award size={14} className="shrink-0 text-[var(--accent)]" />
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-[var(--text)]">{template.name}</div>
+                    <div className="font-mono text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
+                      {template.citation}
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium text-[var(--text-muted)]">
@@ -86,6 +90,20 @@ export function LicenseProgress({ flights, trackedGoals, onAddGoal, onRemoveGoal
                 * Approximated from flights logged as wholly solo or wholly dual — a mixed flight won't split
                 correctly.
               </p>
+
+              {template.manualRequirements.length > 0 && (
+                <div className="mt-3 border-t border-[var(--border)] pt-2">
+                  <p className="mb-1.5 text-[11px] font-medium text-[var(--text)]">Check these yourself</p>
+                  <ul className="space-y-1.5">
+                    {template.manualRequirements.map((req) => (
+                      <li key={req} className="flex items-start gap-1.5 text-[11px] leading-snug text-[var(--text-muted)]">
+                        <Square size={11} className="mt-0.5 shrink-0" />
+                        <span>{req}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )
         })}

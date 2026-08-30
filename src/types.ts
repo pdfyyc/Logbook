@@ -49,13 +49,18 @@ export type AircraftDraft = Omit<Aircraft, "id">
 
 export type MedicalCategory = "Category 1" | "Category 3" | "Category 4" | "None"
 
-// "instrument-check" is recognized by the currency engine — CAR 401.05(3)'s
-// 24-month instrument rating flight test / IPC requirement, whose renewal
-// date also starts the 6-month grace period before 401.05(3.1)'s 6-approach
-// rule applies. Everything else ("other") is a freeform qualification: a
-// PPC, an instructor rating, an endorsement, a company OPS-spec renewal —
-// tracked for its expiry, but not otherwise understood by the engine.
-export type QualificationKind = "instrument-check" | "other"
+// Two kinds are recognized by the engines rather than just tracked for an
+// expiry date:
+//   "instrument-check" — CAR 401.05(3)'s 24-month instrument rating flight
+//     test / IPC, whose completion date also starts the 6-month grace period
+//     before 401.05(3.1)'s 6-approach rule applies.
+//   "ppl-issued" — the date the Private Pilot Licence was issued, which
+//     scopes the CPL's "after the PPL" commercial training requirements
+//     (Standard 421.30(4)(a)(ii)). Carries no expiry.
+// Everything else ("other") is a freeform qualification: a PPC, an instructor
+// rating, an endorsement, a company OPS-spec renewal — tracked for its
+// expiry, but not otherwise understood by the engines.
+export type QualificationKind = "instrument-check" | "ppl-issued" | "other"
 
 export interface Qualification {
   id: string

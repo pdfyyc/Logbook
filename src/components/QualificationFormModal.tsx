@@ -15,6 +15,16 @@ function blankFor(kind: QualificationKind): QualificationDraft {
       notes: "",
     }
   }
+  if (kind === "ppl-issued") {
+    return {
+      kind,
+      name: "Private Pilot Licence — issued",
+      completedOn: "",
+      expiry: "",
+      citation: "CARs Standard 421.26",
+      notes: "",
+    }
+  }
   return { kind, name: "", completedOn: "", expiry: "", citation: "", notes: "" }
 }
 
@@ -42,8 +52,10 @@ export function QualificationFormModal({ initial, onSave, onClose }: Props) {
   }
 
   const isCheck = draft.kind === "instrument-check"
+  const isPpl = draft.kind === "ppl-issued"
+  const usesCompletionDate = isCheck || isPpl
   const computedExpiry = isCheck && draft.completedOn ? addMonths(draft.completedOn, 24) : ""
-  const canSave = draft.name.trim().length > 0 && (!isCheck || draft.completedOn.length > 0)
+  const canSave = draft.name.trim().length > 0 && (!usesCompletionDate || draft.completedOn.length > 0)
 
   return (
     <Modal
@@ -71,6 +83,7 @@ export function QualificationFormModal({ initial, onSave, onClose }: Props) {
           <Select value={draft.kind} onChange={(e) => setKind(e.target.value as QualificationKind)}>
             <option value="other">Rating / endorsement / recurrent training</option>
             <option value="instrument-check">Instrument rating flight test / IPC (CAR 401.05(3))</option>
+            <option value="ppl-issued">Private Pilot Licence issued (scopes CPL progress)</option>
           </Select>
         </Field>
 
@@ -83,15 +96,21 @@ export function QualificationFormModal({ initial, onSave, onClose }: Props) {
           />
         </Field>
 
-        {isCheck ? (
+        {usesCompletionDate ? (
           <>
-            <Field label="Date completed">
+            <Field label={isPpl ? "Date licence issued" : "Date completed"}>
               <Input type="date" value={draft.completedOn} onChange={(e) => set("completedOn", e.target.value)} />
             </Field>
             {computedExpiry && (
               <p className="text-xs text-[var(--text-muted)]">
                 Renewal due {computedExpiry} (24 months later, per CAR 401.05(3)) — also starts the 6-month grace
                 period before the CAR 401.05(3.1) approach-recency rule applies.
+              </p>
+            )}
+            {isPpl && (
+              <p className="text-xs text-[var(--text-muted)]">
+                Doesn't expire. Used to work out which flights count toward the CPL's "after the PPL" commercial
+                training requirements (Standard 421.30(4)(a)(ii)).
               </p>
             )}
           </>
@@ -106,7 +125,7 @@ export function QualificationFormModal({ initial, onSave, onClose }: Props) {
             value={draft.citation}
             onChange={(e) => set("citation", e.target.value)}
             placeholder="e.g. CAR 401.05(1), or company OPS spec"
-            disabled={isCheck}
+            disabled={usesCompletionDate}
           />
         </Field>
         <Field label="Notes">

@@ -1,18 +1,28 @@
 import { Award, GraduationCap, Square, Trash2 } from "lucide-react"
-import type { Flight } from "../types"
-import { LICENSE_TEMPLATES, computeLicenseProgress, getLicenseTemplate } from "../lib/licenseRequirements"
+import type { Flight, PilotProfile } from "../types"
+import {
+  LICENSE_TEMPLATES,
+  computeLicenseProgress,
+  getLicenseTemplate,
+  type RequirementProgress,
+} from "../lib/licenseRequirements"
 import { formatHours } from "../lib/calc"
 import { Card } from "./ui/Card"
 import { Button } from "./ui/Button"
 
+function formatAmount(value: number, unit: RequirementProgress["unit"]): string {
+  return unit === "count" ? String(Math.round(value)) : `${formatHours(value)}h`
+}
+
 interface Props {
   flights: Flight[]
+  profile: PilotProfile
   trackedGoals: string[]
   onAddGoal: (templateId: string) => void
   onRemoveGoal: (templateId: string) => void
 }
 
-export function LicenseProgress({ flights, trackedGoals, onAddGoal, onRemoveGoal }: Props) {
+export function LicenseProgress({ flights, profile, trackedGoals, onAddGoal, onRemoveGoal }: Props) {
   const untracked = LICENSE_TEMPLATES.filter((t) => !trackedGoals.includes(t.id))
 
   return (
@@ -36,7 +46,7 @@ export function LicenseProgress({ flights, trackedGoals, onAddGoal, onRemoveGoal
         {trackedGoals.map((id) => {
           const template = getLicenseTemplate(id)
           if (!template) return null
-          const progress = computeLicenseProgress(template, flights)
+          const progress = computeLicenseProgress(template, flights, profile)
 
           return (
             <div key={id} className="rounded-lg border border-[var(--border)] p-3">
@@ -73,15 +83,20 @@ export function LicenseProgress({ flights, trackedGoals, onAddGoal, onRemoveGoal
                         {item.approximate && <span className="text-[var(--text-muted)]"> *</span>}
                       </span>
                       <span className="font-mono text-[var(--text-muted)]">
-                        {formatHours(item.have)} / {formatHours(item.required)}h
+                        {item.blockedReason ? "—" : formatAmount(item.have, item.unit)} /{" "}
+                        {formatAmount(item.required, item.unit)}
                       </span>
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-[var(--bg-inset)]">
-                      <div
-                        className={`h-full rounded-full ${item.met ? "bg-emerald-500" : "bg-[var(--accent)]"}`}
-                        style={{ width: `${item.pct}%` }}
-                      />
-                    </div>
+                    {item.blockedReason ? (
+                      <p className="text-[10px] italic text-amber-500">{item.blockedReason}</p>
+                    ) : (
+                      <div className="h-1.5 overflow-hidden rounded-full bg-[var(--bg-inset)]">
+                        <div
+                          className={`h-full rounded-full ${item.met ? "bg-emerald-500" : "bg-[var(--accent)]"}`}
+                          style={{ width: `${item.pct}%` }}
+                        />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -120,7 +135,8 @@ export function LicenseProgress({ flights, trackedGoals, onAddGoal, onRemoveGoal
       )}
 
       <p className="mt-3 text-[10px] text-[var(--text-muted)]">
-        More templates (Night Rating, CPL, Instrument Rating) coming — for now, only PPL — Aeroplane is available.
+        Aeroplane permits, licences and ratings only. Helicopter, glider and balloon requirements differ and aren't
+        modelled here.
       </p>
     </Card>
   )

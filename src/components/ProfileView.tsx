@@ -120,9 +120,13 @@ export function ProfileView({
                       ? q.completedOn
                         ? `Completed ${q.completedOn} · renews ${q.expiry}`
                         : "Completion date not set"
-                      : q.expiry
-                        ? `Expires ${q.expiry}`
-                        : "No expiry tracked"}
+                      : q.kind === "ppl-issued"
+                        ? q.completedOn
+                          ? `Issued ${q.completedOn} · doesn't expire`
+                          : "Issue date not set"
+                        : q.expiry
+                          ? `Expires ${q.expiry}`
+                          : "No expiry tracked"}
                     {q.citation ? ` · ${q.citation}` : ""}
                   </div>
                 </div>
@@ -150,6 +154,7 @@ export function ProfileView({
 
       <LicenseProgress
         flights={flights}
+        profile={profile}
         trackedGoals={profile.trackedLicenseGoals}
         onAddGoal={onAddLicenseGoal}
         onRemoveGoal={onRemoveLicenseGoal}

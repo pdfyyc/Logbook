@@ -2,7 +2,7 @@ import type { Aircraft, AircraftCategory } from "../types"
 
 export function normalizeRegistration(value: string): string {
   const compact = value.trim().toUpperCase().replace(/\s+/g, "").replace(/-/g, "")
-  return /^C[A-Z]{3,5}$/.test(compact) ? `C-${compact.slice(1)}` : compact
+  return /^C[A-Z]{4}$/.test(compact) ? `C-${compact.slice(1)}` : compact
 }
 
 export function isDuplicateRegistration(aircraft: Aircraft[], registration: string, exceptId?: string) {

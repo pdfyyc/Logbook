@@ -102,6 +102,15 @@ describe("authoritative flight totals", () => {
       dayTakeoffs: 2,
       nightLandings: 1,
     }));
+  it("uses the shared fallback for legacy records without explicit day time", () => {
+    const legacy = flight("legacy", {
+      totalTime: 10,
+      dayTime: undefined,
+      night: 2,
+      simTime: 3,
+    });
+    expect(calculateFlightTotals([legacy], map).totals.day).toBe(5);
+  });
   it("separates single-engine, multi-engine, and simulator/FTD experience", () => {
     const result = calculateFlightTotals(
       [

@@ -112,4 +112,16 @@ describe("Canadian regulatory progress configuration", () => {
       /flight test|no minimum flight-time/i,
     );
   });
+  it("labels ATPL progress as partial and exposes every uncomputed experience block", () => {
+    expect(ATPL_AEROPLANE.coverageNote).toMatch(/partial automated coverage/i);
+    expect(ATPL_AEROPLANE.items.map((item) => item.id)).toEqual([
+      "total-flight",
+      "aeroplane-flight",
+    ]);
+    const manual = ATPL_AEROPLANE.manualRequirements.join(" ");
+    expect(manual).toMatch(/250 hours pilot-in-command.*100 hours cross-country.*25 hours by night/i);
+    expect(manual).toMatch(/100 hours night/i);
+    expect(manual).toMatch(/additional cross-country/i);
+    expect(manual).toMatch(/75 hours instrument/i);
+  });
 });

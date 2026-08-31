@@ -1,4 +1,5 @@
 import type { Aircraft, Flight } from "../types";
+import { deriveDayTime } from "./numericPolicy";
 
 export type DateRangePreset =
   | "all"
@@ -177,7 +178,7 @@ export function addFlightToTotals(
   target.night += flight.night;
   target.day +=
     flight.dayTime ??
-    Math.max(0, flight.totalTime - flight.night - flight.simTime);
+    deriveDayTime(flight.totalTime, flight.night, flight.simTime);
   target.actualInstrument += flight.actualInstrument;
   target.simulatedInstrument += flight.simulatedInstrument;
   target.instrument += flight.actualInstrument + flight.simulatedInstrument;

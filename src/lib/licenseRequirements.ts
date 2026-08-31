@@ -24,6 +24,7 @@ export interface LicenseTemplate {
   citation: string;
   sourceTitle: string;
   ruleVersion: string;
+  coverageNote?: string;
   /** Requirements the regulation imposes that can't be computed from logged
    *  hours alone — shown to the student as a manual checklist. */
   manualRequirements: string[];
@@ -323,11 +324,17 @@ export const ATPL_AEROPLANE: LicenseTemplate = {
   sourceTitle: "Airline Transport Pilot Licence — Aeroplane experience",
   ruleVersion:
     "Transport Canada Standard 421, effective amendment noted 2025-12-17; reviewed 2026-08-31",
+  coverageNote:
+    "Partial automated coverage only. The computed checks below do not establish ATPL eligibility; every manual item must also be verified against authoritative records.",
   manualRequirements: [
     "Hold a Commercial Pilot Licence — Aeroplane that is not restricted to daylight flying — 421.34(4).",
     "Hold a valid Category 1 Medical Certificate — 421.34(2).",
     "Provide evidence of SAMRA, SARON and INRAT knowledge requirements — 421.34(3).",
     "Provide current multi-engine, two-crew IFR skill evidence (or an accepted PPC/PCC/LOE/MV) — 421.34(5).",
+    "Verify at least 250 hours pilot-in-command in aeroplanes, with no more than 100 hours credited as pilot-in-command under supervision. Within that requirement, verify at least 100 hours cross-country, including at least 25 hours by night — 421.34(4)(a). The log cannot prove the overlap or distinguish PICUS.",
+    "Verify 100 hours night as pilot-in-command or co-pilot, including at least 30 hours acquired in aeroplanes — 421.34(4)(b). Separate role and night totals do not prove their overlap within mixed-role flights.",
+    "Verify the additional cross-country requirement: 100 hours as pilot-in-command, 200 hours as co-pilot, or an accepted combination — 421.34(4)(c). The stored buckets do not prove the required role/cross-country overlap.",
+    "Verify 75 hours instrument flight time, with no more than 25 hours in approved instrument ground trainers and no more than 35 hours in helicopters; ground-trainer time cannot count toward the 1,500-hour total — 421.34(4)(d). The log does not distinguish every permitted source well enough to prove these limits.",
     "Review the official standard and supporting records before applying. This screen is a readiness aid, not an application determination.",
   ],
   items: [

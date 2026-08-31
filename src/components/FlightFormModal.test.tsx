@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { Aircraft, Flight, FlightDraft, PilotProfile } from "../types"
 import { defaultPilotProfile } from "../types"
@@ -56,5 +56,14 @@ describe("FlightFormModal automatic and manual times", () => {
     const historical = { ...aircraft[0], id: "history", tailNumber: "Historical aircraft", makeModel: "PA-28", recordKind: "historical" } as Aircraft
     const onSave = vi.fn(); render(<FlightFormModal aircraft={[...aircraft, historical]} flights={[]} profile={{ ...profile, defaultRole: "pic" }} initialDraft={{ date: "2026-08-30", aircraftId: "history", from: "CEN4", to: "CYBW", route: "", totalTime: 1, dayTime: 1, pic: 1, sic: 0, solo: 0, dualReceived: 0, dualGiven: 0, crossCountry: 0, night: 0, actualInstrument: 0, simulatedInstrument: 0, dayTakeoffs: 1, nightTakeoffs: 0, dayLandings: 1, nightLandings: 0, approaches: 0, holds: 0, simTime: 0, remarks: "", myRole: "pic", legalPicName: "Test Pilot", primaryCrewName: "", primaryCrewRole: "", instructorName: "", passengers: [], sourceAircraftText: "Original mark" }} onSave={onSave} onClose={vi.fn()} onAddAircraft={vi.fn()}/>)
     expect(screen.getAllByText(/Historical aircraft · PA-28/).length).toBeGreaterThan(0); fireEvent.change(screen.getByLabelText("Original aircraft text"), { target: { value: "C FHIS / PA28" } }); fireEvent.click(screen.getByRole("button", { name: "Save duplicate" })); expect(onSave.mock.calls[0][0].sourceAircraftText).toBe("C FHIS / PA28")
+  })
+  it("visibly focuses warning-only blockers after a failed save attempt", async () => {
+    const onSave = vi.fn()
+    render(<FlightFormModal aircraft={aircraft} flights={[]} profile={profile} initialDraft={{ date: "2026-08-30", aircraftId: "a", from: "CEN4", to: "CYBW", route: "", totalTime: 1, dayTime: 1, pic: 1, sic: 0, solo: 0, dualReceived: .5, dualGiven: .5, crossCountry: 0, night: 0, actualInstrument: 0, simulatedInstrument: 0, dayTakeoffs: 1, nightTakeoffs: 0, dayLandings: 1, nightLandings: 0, approaches: 0, holds: 0, simTime: 0, remarks: "", myRole: "instructor", legalPicName: "Test Pilot", primaryCrewName: "Training Student", primaryCrewRole: "student", instructorName: "Test Pilot", passengers: [] }} onSave={onSave} onClose={vi.fn()} onAddAircraft={vi.fn()}/>)
+    fireEvent.click(screen.getByRole("button", { name: "Save duplicate" }))
+    const alert = screen.getByRole("alert")
+    expect(alert.textContent).toMatch(/Flight not saved — resolve these items/i)
+    await waitFor(() => expect(document.activeElement).toBe(alert))
+    expect(onSave).not.toHaveBeenCalled()
   })
 })

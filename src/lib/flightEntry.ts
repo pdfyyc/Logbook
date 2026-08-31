@@ -1,4 +1,5 @@
 import type { Aircraft, Flight, FlightDraft } from "../types"
+import { deriveDayTime } from "./numericPolicy"
 
 export type ManagedTimeKey = "pic" | "sic" | "dualReceived" | "dualGiven" | "dayTime"
 
@@ -30,7 +31,8 @@ export function flightWarnings(draft: FlightDraft, aircraft?: Aircraft): string[
   if (draft.dualGiven > 0 && draft.myRole !== "instructor") warnings.push("Instructor time is entered, but your role is not Instructor.")
   if (draft.dualGiven > 0 && draft.dualReceived > 0) warnings.push("Dual received and instructor time are both entered; confirm or correct the time breakdown.")
   for (const [label, value] of [["PIC", draft.pic], ["co-pilot", draft.sic], ["dual received", draft.dualReceived], ["instructor", draft.dualGiven], ["instrument", draft.actualInstrument + draft.simulatedInstrument]] as const) if (value > draft.totalTime) warnings.push(`${label} time cannot exceed total flight time.`)
-  if (Math.abs((draft.dayTime ?? Math.max(0, draft.totalTime - draft.night)) + draft.night - draft.totalTime) > 0.01) warnings.push("Day plus night time must equal total flight time.")
+  const dayTime = draft.dayTime ?? deriveDayTime(draft.totalTime, draft.night, draft.simTime)
+  if (Math.abs(dayTime + draft.night + draft.simTime - draft.totalTime) > 0.01) warnings.push("Day plus night plus simulator time must equal total recorded time.")
   if (!["simulator", "ftd"].includes(aircraft?.recordKind ?? "aircraft") && draft.simTime > 0) warnings.push("Simulator time cannot be mixed with an aircraft flight.")
   if (["simulator", "ftd"].includes(aircraft?.recordKind ?? "") && draft.totalTime > 0 && draft.simTime !== draft.totalTime) warnings.push("For a simulator or FTD session, simulator time should equal total time.")
   if (draft.myRole === "copilot" && !draft.legalPicName?.trim()) warnings.push("Enter the legal PIC before logging co-pilot time.")

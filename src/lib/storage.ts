@@ -6,9 +6,7 @@ import type {
   ImportMappingTemplate,
   PilotProfile,
 } from "../types";
-import { defaultPilotProfile } from "../types";
 import type { WeatherSnapshot } from "./weather";
-import { normalizeRegistration } from "./aircraftRegistry";
 import {
   migrateBackup,
   migrateLegacy,
@@ -23,12 +21,10 @@ const THEME_KEY = "logbook:theme";
 const PROFILE_KEY = "logbook:profile";
 const WEATHER_KEY = "logbook:weather";
 const METAR_ICAO_KEY = "logbook:metarIcao";
-const AIRCRAFT_SCHEMA_KEY = "logbook:aircraftSchema";
 export const ROOT_DOCUMENT_KEY = "logbook:document";
 export const LAST_GOOD_KEY = "logbook:lastGood";
 export const JOURNAL_KEY = "logbook:journal";
 export const IMPORT_RECOVERY_KEY = "logbook:importRecovery";
-export const AIRCRAFT_SCHEMA_VERSION = 2;
 
 function read<T>(key: string, fallback: T, storage: Storage = localStorage): T {
   try {
@@ -46,17 +42,6 @@ function write<T>(key: string, value: T) {
   } catch {
     // storage unavailable (private mode, quota) — fail silently, in-memory state still works
   }
-}
-
-export function loadAircraft(): Aircraft[] {
-  const records = read<Aircraft[]>(AIRCRAFT_KEY, []);
-  const version = read<number>(AIRCRAFT_SCHEMA_KEY, 1);
-  const migrated = migrateAircraftRecords(records, version);
-  if (version < AIRCRAFT_SCHEMA_VERSION) {
-    write(AIRCRAFT_KEY, migrated);
-    write(AIRCRAFT_SCHEMA_KEY, AIRCRAFT_SCHEMA_VERSION);
-  }
-  return migrated;
 }
 
 export interface LoadLogbookResult {
@@ -221,9 +206,6 @@ export function loadFlightDraftMetadata():
   );
   return legacy ? { value: legacy, updatedAt: "" } : undefined;
 }
-export function loadFlightDraft(): FlightDraft | undefined {
-  return loadFlightDraftMetadata()?.value;
-}
 export function saveFlightDraftMetadata(draft?: FlightDraft) {
   const current = loadLogbookDocument().document;
   const saved = persistLogbookDocument({
@@ -237,51 +219,12 @@ export function saveFlightDraftMetadata(draft?: FlightDraft) {
   );
 }
 
-export function migrateAircraftRecords(
-  records: Aircraft[],
-  fromVersion: number,
-): Aircraft[] {
-  if (fromVersion >= AIRCRAFT_SCHEMA_VERSION) return records;
-  return records.map((aircraft) => ({
-    ...aircraft,
-    tailNumber: normalizeRegistration(aircraft.tailNumber),
-    recordKind: aircraft.recordKind ?? "aircraft",
-    archived: aircraft.archived ?? false,
-  }));
-}
-
-export function saveAircraft(aircraft: Aircraft[]) {
-  write(AIRCRAFT_KEY, aircraft);
-}
-
-export function loadFlights(): Flight[] {
-  return read<Flight[]>(FLIGHTS_KEY, []);
-}
-
-export function saveFlights(flights: Flight[]) {
-  write(FLIGHTS_KEY, flights);
-}
-
 export function loadTheme(): "light" | "dark" {
   return read<"light" | "dark">(THEME_KEY, "dark");
 }
 
 export function saveTheme(theme: "light" | "dark") {
   write(THEME_KEY, theme);
-}
-
-export function loadProfile(): PilotProfile {
-  const saved = read<Partial<PilotProfile>>(PROFILE_KEY, {});
-  return {
-    ...defaultPilotProfile,
-    ...saved,
-    qualifications: saved.qualifications ?? [],
-    trackedLicenseGoals: saved.trackedLicenseGoals ?? [],
-  };
-}
-
-export function saveProfile(profile: PilotProfile) {
-  write(PROFILE_KEY, profile);
 }
 
 export function loadWeatherCache(): WeatherSnapshot | null {

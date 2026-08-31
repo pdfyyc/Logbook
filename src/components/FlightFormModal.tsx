@@ -156,16 +156,20 @@ export function FlightFormModal({ aircraft, flights, profile, initial, initialDr
     if (!initial && !draftDecisionPending) saveFlightDraftMetadata(draft)
   }, [draft, initial, draftDecisionPending])
 
-  function focusFirstInvalid() {
+  function focusFirstBlockingIssue() {
     requestAnimationFrame(() => {
       const target = document.querySelector<HTMLInputElement>('[aria-invalid="true"]')
-      target?.focus()
+      if (target) {
+        target.focus()
+        return
+      }
+      document.getElementById("flight-save-warnings")?.focus()
     })
   }
 
   function submit(closeAfter: boolean) {
     setAttemptedSave(true)
-    if (!canSave) { focusFirstInvalid(); return }
+    if (!canSave) { focusFirstBlockingIssue(); return }
     if (submitLock.current || !confirmDuplicate()) return
     submitLock.current = true; setSubmitting(true)
     try {
@@ -361,7 +365,7 @@ export function FlightFormModal({ aircraft, flights, profile, initial, initialDr
         </Field>
       )}
 
-      {warnings.length > 0 && <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-600"><strong>Before saving:</strong><ul className="mt-1 list-disc pl-4">{warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}
+      {warnings.length > 0 && <div id="flight-save-warnings" role="alert" tabIndex={-1} className={`mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-600 outline-none focus:ring-2 focus:ring-amber-500 ${attemptedSave ? "ring-2 ring-amber-500" : ""}`}><strong>{attemptedSave ? "Flight not saved — resolve these items:" : "Before saving:"}</strong><ul className="mt-1 list-disc pl-4">{warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}
     </Modal>
   )
 }

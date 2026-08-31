@@ -93,7 +93,12 @@ export function LicenseProgress({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium text-[var(--text-muted)]">
-                    {progress.metCount} / {progress.totalCount} met
+                    {progress.totalCount === 0
+                      ? "Manual review only"
+                      : `${progress.metCount} / ${progress.totalCount} computed checks met`}
+                    {template.manualRequirements.length > 0
+                      ? ` · ${template.manualRequirements.length} manual`
+                      : ""}
                   </span>
                   <button
                     onClick={() => onRemoveGoal(id)}
@@ -104,6 +109,12 @@ export function LicenseProgress({
                   </button>
                 </div>
               </div>
+
+              {template.coverageNote && (
+                <p className="mb-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-[11px] font-medium text-amber-600">
+                  {template.coverageNote}
+                </p>
+              )}
 
               <div className="space-y-2">
                 {progress.items.map((item) => (

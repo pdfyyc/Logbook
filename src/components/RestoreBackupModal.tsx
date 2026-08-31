@@ -1,4 +1,5 @@
 import type { LogbookDocument } from "../lib/dataModel"
+import { downloadTextFile } from "../lib/csv"
 import { Button } from "./ui/Button"
 import { Modal } from "./ui/Modal"
 
@@ -8,7 +9,7 @@ export function RestoreBackupModal({ document: backup, currentBackup, onCancel, 
   const voided = backup.flights.filter((flight) => flight.voidedAt).length
   const keys = new Map<string, number>(); backup.flights.forEach((flight) => { const key = [flight.date, flight.aircraftId, flight.from, flight.to, flight.totalTime].join("|"); keys.set(key, (keys.get(key) ?? 0) + 1) })
   const duplicates = [...keys.values()].filter((count) => count > 1).reduce((sum, count) => sum + count, 0)
-  function downloadRecovery() { const blob = new Blob([currentBackup], { type: "application/json" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `logbook-recovery-${new Date().toISOString().replace(/[:.]/g, "-")}.json`; link.click(); URL.revokeObjectURL(url) }
+  function downloadRecovery() { downloadTextFile(`logbook-recovery-${new Date().toISOString().replace(/[:.]/g, "-")}.json`, currentBackup, "application/json") }
   return <Modal title="Review backup restoration" onClose={onCancel} wide footer={<><Button variant="secondary" onClick={onCancel}>Cancel</Button><Button variant="secondary" onClick={downloadRecovery}>Download current recovery backup</Button><Button onClick={onRestore}>Replace current logbook</Button></>}>
     <p className="text-sm text-[var(--text-muted)]">Nothing has changed yet. Restoring replaces the current local logbook; merging is deliberately unavailable.</p>
     <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3"><div><dt className="text-xs text-[var(--text-muted)]">Schema</dt><dd>{backup.schemaVersion}</dd></div><div><dt className="text-xs text-[var(--text-muted)]">Exported/saved</dt><dd>{backup.savedAt}</dd></div><div><dt className="text-xs text-[var(--text-muted)]">Flights</dt><dd>{backup.flights.length}</dd></div><div><dt className="text-xs text-[var(--text-muted)]">Aircraft</dt><dd>{backup.aircraft.length}</dd></div><div><dt className="text-xs text-[var(--text-muted)]">Qualifications</dt><dd>{backup.profile.qualifications.length}</dd></div><div><dt className="text-xs text-[var(--text-muted)]">Amended / voided</dt><dd>{amended} / {voided}</dd></div></dl>

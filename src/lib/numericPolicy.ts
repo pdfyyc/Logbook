@@ -18,14 +18,26 @@ export function normalizeCount(value: unknown): number | null {
   return Number.isSafeInteger(number) && number >= 0 && number <= 1000 ? number : null
 }
 
+/** Derive the day-flight bucket when older data has no explicit dayTime.
+ * Simulator/FTD time is a separate bucket and must not be reported as day
+ * flight time. Keep every fallback calculation routed through this helper. */
+export function deriveDayTime(
+  totalTime: number,
+  nightTime: number,
+  simulatorTime: number,
+): number {
+  return Math.max(0, totalTime - nightTime - simulatorTime)
+}
+
 export function validateFlightNumbers(flight: Partial<FlightDraft>): string[] {
   const errors: string[] = []
   for (const key of hourKeys) if (normalizeHours(flight[key] ?? 0) === null) errors.push(`${key} must be a finite number from 0 to ${MAX_FLIGHT_HOURS} with at most ${HOURS_DECIMALS} decimal place.`)
   for (const key of countKeys) if (normalizeCount(flight[key] ?? 0) === null) errors.push(`${key} must be a non-negative whole number.`)
   const total = normalizeHours(flight.totalTime ?? 0) ?? 0
-  const day = normalizeHours(flight.dayTime ?? Math.max(0, total - (flight.night ?? 0))) ?? 0
   const night = normalizeHours(flight.night ?? 0) ?? 0
-  if (Math.abs(day + night - total) > 0.001) errors.push("Day plus night time must equal total flight time.")
+  const simulator = normalizeHours(flight.simTime ?? 0) ?? 0
+  const day = normalizeHours(flight.dayTime ?? deriveDayTime(total, night, simulator)) ?? 0
+  if (Math.abs(day + night + simulator - total) > 0.001) errors.push("Day plus night plus simulator time must equal total recorded time.")
   for (const key of ["pic", "sic", "solo", "dualReceived", "dualGiven", "crossCountry", "actualInstrument", "simulatedInstrument", "simTime"] as const) if ((normalizeHours(flight[key] ?? 0) ?? 0) > total) errors.push(`${key} cannot exceed total flight time.`)
   return [...new Set(errors)]
 }

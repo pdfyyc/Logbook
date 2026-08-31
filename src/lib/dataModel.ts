@@ -8,6 +8,7 @@ import type {
 } from "../types";
 import { defaultPilotProfile } from "../types";
 import { normalizeRegistration } from "./aircraftRegistry";
+import { deriveDayTime } from "./numericPolicy";
 import { validateFlightNumbers } from "./numericPolicy";
 
 export const ROOT_SCHEMA_VERSION = 3;
@@ -133,14 +134,17 @@ export function migrateLegacy(
   const migratedFlights = flights.map((flight, index) => {
     const next = { ...flight };
     if (next.dayTime === undefined) {
-      next.dayTime = Math.max(
-        0,
-        Number((next.totalTime - next.night).toFixed(1)),
+      next.dayTime = Number(
+        deriveDayTime(
+          next.totalTime,
+          next.night ?? 0,
+          next.simTime ?? 0,
+        ).toFixed(1),
       );
       uncertainties.push({
         path: `flights[${index}].dayTime`,
         reason:
-          "Inferred as total minus night because legacy records did not store day time.",
+          "Inferred as total minus night and simulator time because legacy records did not store day time.",
       });
     }
     if (next.dayTakeoffs === undefined) {

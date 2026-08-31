@@ -19,13 +19,15 @@ import { loadTheme, saveTheme, exportData, restoreLogbookDocument } from "./lib/
 import { migrateBackup, type LogbookDocument } from "./lib/dataModel"
 import { downloadTextFile } from "./lib/csv"
 import type { Aircraft, Flight, FlightDraft, Qualification } from "./types"
+import { duplicateFlightDraft } from "./lib/flightEntryUx"
 
 export default function App() {
   const store = useLogbook()
   const [tab, setTab] = useState<Tab>("dashboard")
   const [theme, setTheme] = useState<"light" | "dark">(() => loadTheme())
 
-  const [flightModal, setFlightModal] = useState<null | { editing?: Flight; draft?: FlightDraft; reviewSuggestion?: string }>(null)
+  const [flightModal, setFlightModal] = useState<null | { editing?: Flight; draft?: FlightDraft; mode?: "create" | "edit" | "duplicate"; reviewSuggestion?: string }>(null)
+  const [saveNotice, setSaveNotice] = useState("")
   const [aircraftModal, setAircraftModal] = useState<null | { editing?: Aircraft; resumeFlightDraft?: FlightDraft }>(null)
   const [qualificationModal, setQualificationModal] = useState<null | { editing?: Qualification }>(null)
   const [voidFlight, setVoidFlight] = useState<Flight | null>(null)
@@ -72,9 +74,10 @@ export default function App() {
             flights={store.flights}
             aircraftById={store.aircraftById}
             profile={store.profile}
-            onAddFlight={() => setFlightModal({})}
+            onAddFlight={() => setFlightModal({ mode: "create" })}
             onViewAllFlights={() => setTab("logbook")}
             onEditFlight={(flight, reviewSuggestion) => setFlightModal({ editing: flight, reviewSuggestion })}
+            uncertainties={store.uncertainties}
           />
         )}
 
@@ -83,8 +86,9 @@ export default function App() {
             flights={store.flights}
             aircraft={store.aircraft}
             aircraftById={store.aircraftById}
-            onAdd={() => setFlightModal({})}
+            onAdd={() => setFlightModal({ mode: "create" })}
             onEdit={(f) => setFlightModal({ editing: f })}
+            onDuplicate={(flight) => setFlightModal({ draft: duplicateFlightDraft(flight), mode: "duplicate" })}
             onVoid={(flight) => setVoidFlight(flight)}
             onExperienceSummary={() => setExperienceSummaryOpen(true)}
             onImportFile={importFlightFile}
@@ -133,6 +137,7 @@ export default function App() {
           </Button>
         </div>
       </main>
+      {saveNotice && <div role="status" className="fixed bottom-20 left-1/2 z-40 -translate-x-1/2 rounded-lg bg-emerald-600 px-4 py-3 text-sm font-medium text-white shadow-xl sm:bottom-5">{saveNotice}</div>}
 
       {flightModal && (
         <FlightFormModal
@@ -141,6 +146,7 @@ export default function App() {
           profile={store.profile}
           initial={flightModal.editing}
           initialDraft={flightModal.draft}
+          mode={flightModal.mode}
           reviewSuggestion={flightModal.reviewSuggestion}
           recentAircraftIds={[...new Set(store.flights.filter((f) => !f.voidedAt).sort((a, b) => b.date.localeCompare(a.date)).map((f) => f.aircraftId))].slice(0, 5)}
           onClose={() => setFlightModal(null)}
@@ -151,6 +157,9 @@ export default function App() {
           onSave={(draft, amendmentReason) => {
             if (flightModal.editing) store.updateFlight(flightModal.editing.id, draft, amendmentReason ?? "")
             else store.addFlight(draft)
+            setTab("logbook")
+            setSaveNotice(flightModal.editing ? "Flight amendment saved." : flightModal.mode === "duplicate" ? "Duplicated flight saved as a new entry." : "Flight saved.")
+            window.setTimeout(() => setSaveNotice(""), 3500)
           }}
         />
       )}

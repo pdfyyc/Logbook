@@ -1,113 +1,50 @@
 import type { Aircraft, Flight } from "../types"
+import type { MigrationUncertainty } from "./dataModel"
+import { normalizeRegistration } from "./aircraftRegistry"
+import { peopleConflicts } from "./flightEntryUx"
+import { validateFlightNumbers } from "./numericPolicy"
 
-export type HealthIssueLevel = "warning" | "error"
+export type HealthIssueLevel = "warning" | "error" | "uncertainty"
+export interface LogbookHealthIssue { id: string; level: HealthIssueLevel; title: string; detail: string; flightIds: string[]; suggestion: string }
 
-export interface LogbookHealthIssue {
-  id: string
-  level: HealthIssueLevel
-  title: string
-  detail: string
-  flightIds: string[]
-  suggestion: string
-}
+const dateValid = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`))
+const identity = (flight: Flight, aircraft?: Aircraft) => `${flight.date || "Undated entry"} · ${aircraft?.tailNumber || flight.sourceAircraftText || "unknown aircraft"} · ${flight.from || "?"} → ${flight.to || "?"}`
+const nameKey = (value = "") => value.trim().replace(/\s+/g, " ").toLocaleLowerCase()
 
-const EPSILON = 0.001
-
-function exceeds(value: number, limit: number) {
-  return value > limit + EPSILON
-}
-
-/**
- * Finds entries that deserve a pilot's review. These are warnings, not a
- * determination that a flight was logged illegally: the app lacks enough
- * context to make that claim.
- */
-export function checkLogbookHealth(flights: Flight[], aircraftById: Map<string, Aircraft>): LogbookHealthIssue[] {
-  const issues: LogbookHealthIssue[] = []
-  const seen = new Map<string, Flight[]>()
+/** Deterministic review flags only. This never changes records or authoritative totals. */
+export function checkLogbookHealth(flights: Flight[], aircraftById: Map<string, Aircraft>, uncertainties: MigrationUncertainty[] = []): LogbookHealthIssue[] {
+  const issues: LogbookHealthIssue[] = []; const seenIds = new Set<string>(); const duplicateGroups = new Map<string, Flight[]>()
+  const add = (issue: LogbookHealthIssue) => { if (!seenIds.has(issue.id)) { seenIds.add(issue.id); issues.push(issue) } }
   const today = new Date().toISOString().slice(0, 10)
-
-  for (const flight of flights) {
-    if (flight.voidedAt) continue
-    const aircraft = aircraftById.get(flight.aircraftId)
-    const short = (n: number) => n.toFixed(1)
-
-    if (!aircraft) {
-      issues.push({
-        id: `missing-aircraft-${flight.id}`,
-        level: "error",
-        title: "Missing aircraft record",
-        detail: `${flight.date} refers to an aircraft that is no longer in the fleet list. Restore or identify the aircraft before relying on this entry.`,
-        flightIds: [flight.id],
-        suggestion: "Choose the correct aircraft record, or restore its archived aircraft entry.",
-      })
+  flights.forEach((flight, index) => {
+    if (flight.voidedAt) return
+    const aircraft = aircraftById.get(flight.aircraftId); const label = identity(flight, aircraft)
+    if (!dateValid(flight.date)) add({ id: `date-${flight.id}`, level: "error", title: "Invalid or unparseable flight date", detail: `${label}. This entry cannot be placed reliably in date-based totals or recency windows.`, flightIds: [flight.id], suggestion: "Review this entry and enter a valid calendar date." })
+    else if (flight.date > today) add({ id: `future-date-${flight.id}`, level: "warning", title: "Future-dated flight", detail: `${label}. The date is later than today.`, flightIds: [flight.id], suggestion: "Review whether this future date was intentional." })
+    if (!aircraft) add({ id: `missing-aircraft-${flight.id}`, level: "error", title: "Missing aircraft reference", detail: `${label}. The linked aircraft record cannot be found.`, flightIds: [flight.id], suggestion: "Choose the correct preserved aircraft or historical record before relying on this entry." })
+    else {
+      const actualAircraft = !aircraft.recordKind || aircraft.recordKind === "aircraft"
+      if (!aircraft.makeModel?.trim()) add({ id: `aircraft-type-${flight.id}`, level: "warning", title: "Aircraft type is missing", detail: `${label}. The linked record has no aircraft type or model.`, flightIds: [flight.id], suggestion: "Review the aircraft record and confirm its type." })
+      if (actualAircraft && !normalizeRegistration(aircraft.tailNumber ?? "")) add({ id: `registration-${flight.id}`, level: "warning", title: "Aircraft registration is missing", detail: `${label}. A registered-aircraft entry has no usable registration.`, flightIds: [flight.id], suggestion: "Review the aircraft record or use a historical record when the registration is genuinely unknown." })
     }
-    if (flight.date > today) {
-      issues.push({
-        id: `future-date-${flight.id}`,
-        level: "warning",
-        title: "Future-dated flight",
-        detail: `${flight.date} is later than today. Confirm that the date was entered intentionally.`,
-        flightIds: [flight.id],
-        suggestion: "Change the flight date if it was entered accidentally.",
-      })
-    }
-    if (exceeds(flight.night, flight.totalTime)) {
-      issues.push({
-        id: `night-total-${flight.id}`,
-        level: "error",
-        title: "Night time exceeds total time",
-        detail: `${flight.date}: ${short(flight.night)}h night is greater than ${short(flight.totalTime)}h total.`,
-        flightIds: [flight.id],
-        suggestion: "Reduce night time to no more than total time, or correct the total time.",
-      })
-    }
-    const instrument = flight.actualInstrument + flight.simulatedInstrument
-    if (exceeds(instrument, flight.totalTime)) {
-      issues.push({
-        id: `instrument-total-${flight.id}`,
-        level: "error",
-        title: "Instrument time exceeds total time",
-        detail: `${flight.date}: ${short(instrument)}h instrument is greater than ${short(flight.totalTime)}h total.`,
-        flightIds: [flight.id],
-        suggestion: "Reduce actual or simulated instrument time, or correct the total time.",
-      })
-    }
-    if (exceeds(flight.simTime, flight.totalTime)) {
-      issues.push({
-        id: `sim-total-${flight.id}`,
-        level: "error",
-        title: "Simulator time exceeds total time",
-        detail: `${flight.date}: ${short(flight.simTime)}h simulator/FTD is greater than ${short(flight.totalTime)}h total.`,
-        flightIds: [flight.id],
-        suggestion: "For a simulator session, make simulator time equal the session total; otherwise remove simulator time.",
-      })
-    }
-    for (const [key, label, value] of [["pic", "PIC", flight.pic], ["sic", "co-pilot", flight.sic], ["dual-received", "dual received", flight.dualReceived], ["dual-given", "instructor", flight.dualGiven]] as const) {
-      if (!exceeds(value, flight.totalTime)) continue
-      issues.push({ id: `role-${key}-total-${flight.id}`, level: "error", title: `${label} time exceeds total time`, detail: `${flight.date}: ${short(value)}h ${label} is greater than ${short(flight.totalTime)}h total.`, flightIds: [flight.id], suggestion: `Reduce ${label} time to the amount actually credited, or correct total flight time.` })
-    }
-    if (flight.dualReceived > 0 && flight.dualGiven > 0) {
-      issues.push({ id: `dual-conflict-${flight.id}`, level: "warning", title: "Dual received and instructor time both entered", detail: `${flight.date}: the entry contains both dual received and dual given. This is unusual for one pilot's logbook.`, flightIds: [flight.id], suggestion: "Confirm whether you were receiving or providing instruction and remove the category that does not apply." })
-    }
-    const duplicateKey = [flight.date, flight.aircraftId, flight.from.trim(), flight.to.trim(), flight.totalTime].join("|")
-    const group = seen.get(duplicateKey) ?? []
-    group.push(flight)
-    seen.set(duplicateKey, group)
+    if (!flight.from.trim() || !flight.to.trim()) add({ id: `route-endpoint-${flight.id}`, level: "error", title: "Departure or destination is missing", detail: `${label}. One or both route endpoints are blank.`, flightIds: [flight.id], suggestion: "Enter both departure and destination, using preserved historical text where necessary." })
+    const numeric = validateFlightNumbers(flight)
+    if (numeric.length) { const role = numeric.find((message) => /^(pic|sic|dualReceived|dualGiven) cannot exceed/.test(message))?.split(" ")[0]; const roleId = role === "sic" ? "sic" : role === "dualReceived" ? "dual-received" : role === "dualGiven" ? "dual-given" : "pic"; add({ id: role ? `role-${roleId}-total-${flight.id}` : `numeric-${flight.id}`, level: "error", title: "Flight time or count values need review", detail: `${label}. ${numeric.join(" ")}`, flightIds: [flight.id], suggestion: "Correct the time or operation counts before using this entry in totals." }) }
+    if ((flight.dayTakeoffs ?? 0) + (flight.nightTakeoffs ?? 0) > 0 && flight.dayLandings + flight.nightLandings === 0) add({ id: `movement-${flight.id}`, level: "warning", title: "Takeoffs are recorded without a landing", detail: `${label}. This can be legitimate, but deserves review.`, flightIds: [flight.id], suggestion: "Confirm the movement counts; do not change them if this was intentional." })
+    if (flight.approaches > 0 && flight.actualInstrument + flight.simulatedInstrument === 0) add({ id: `instrument-${flight.id}`, level: "warning", title: "Approaches recorded without instrument time", detail: `${label}. Approaches are present while both instrument-time fields are zero.`, flightIds: [flight.id], suggestion: "Review the approach count and instrument time; either value may be correct for the operation." })
+    if (flight.dualReceived > 0 && flight.dualGiven > 0) add({ id: `dual-conflict-${flight.id}`, level: "warning", title: "Dual received and instructor time both entered", detail: `${label}. Both categories are present for one pilot entry.`, flightIds: [flight.id], suggestion: "Review whether you were receiving or providing instruction." })
+    const rawPeople = [flight.legalPicName, flight.primaryCrewName, flight.instructorName, ...(flight.passengers ?? [])]
+    const nonempty = rawPeople.filter((value): value is string => Boolean(value?.trim()))
+    const malformed = (flight.passengers ?? []).some((value) => !value.trim()) || new Set(nonempty.map(nameKey)).size !== nonempty.length || peopleConflicts(flight).length > 0
+    if (malformed) add({ id: `people-${flight.id}`, level: "warning", title: "People or passenger roles need review", detail: `${label}. A blank, duplicate, or contradictory person entry was detected.`, flightIds: [flight.id], suggestion: "Review names and make sure each person appears in the correct crew or passenger role." })
+    const key = [flight.date, flight.aircraftId, flight.from.trim().toUpperCase(), flight.to.trim().toUpperCase(), Number.isFinite(flight.totalTime) ? flight.totalTime.toFixed(1) : String(flight.totalTime), flight.myRole ?? ""].join("|")
+    duplicateGroups.set(key, [...(duplicateGroups.get(key) ?? []), flight])
+    const migration = uncertainties.filter((item) => item.path.startsWith(`flights[${index}].`))
+    if (migration.length) add({ id: `migration-${flight.id}`, level: "uncertainty", title: "Legacy values were inferred", detail: `${label}. ${migration.map((item) => item.reason).join(" ")}`, flightIds: [flight.id], suggestion: "Compare this entry with the source logbook and amend it only if you can confirm the original values." })
+  })
+  for (const group of duplicateGroups.values()) if (group.length > 1) {
+    const first = group[0]
+    add({ id: `duplicate-${group.map((flight) => flight.id).sort().join("-")}`, level: "warning", title: "Possible duplicate flights", detail: `${group.length} active entries share the same date, aircraft, route, total time, and logged role: ${identity(first, aircraftById.get(first.aircraftId))}.`, flightIds: group.map((flight) => flight.id), suggestion: "Review each entry and void only an accidental duplicate; repeated legitimate flights can remain." })
   }
-
-  for (const duplicates of seen.values()) {
-    if (duplicates.length < 2) continue
-    const example = duplicates[0]
-    issues.push({
-      id: `duplicate-${duplicates.map((f) => f.id).sort().join("-")}`,
-      level: "warning",
-      title: "Possible duplicate flights",
-      detail: `${duplicates.length} active entries share ${example.date}, aircraft, route, and total time. Review them and void any accidental duplicate rather than deleting it.`,
-      flightIds: duplicates.map((f) => f.id),
-      suggestion: "Open each entry and void only the accidental duplicate; preserve legitimate repeated flights.",
-    })
-  }
-
   return issues
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { Ban, Download, FileText, History, Pencil, Plus, Search, Upload } from "lucide-react"
+import { Ban, Copy, Download, FileText, History, Pencil, Plus, Search, Upload } from "lucide-react"
 import type { Aircraft, Flight } from "../types"
 import { formatHours } from "../lib/calc"
 import { downloadTextFile, flightsToCsv } from "../lib/csv"
@@ -13,6 +13,7 @@ interface Props {
   aircraftById: Map<string, Aircraft>
   onAdd: () => void
   onEdit: (flight: Flight) => void
+  onDuplicate: (flight: Flight) => void
   onVoid: (flight: Flight) => void
   onExperienceSummary: () => void
   onImportFile: (file: File) => void
@@ -27,6 +28,7 @@ export function LogbookView({
   aircraftById,
   onAdd,
   onEdit,
+  onDuplicate,
   onVoid,
   onExperienceSummary,
   onImportFile,
@@ -43,7 +45,7 @@ export function LogbookView({
       .filter((f) => {
         if (!q) return true
         const ac = aircraftById.get(f.aircraftId)
-        return [f.from, f.to, f.route, f.remarks, ac?.tailNumber, ac?.makeModel]
+        return [f.from, f.to, f.route, f.remarks, f.legalPicName, f.primaryCrewName, f.instructorName, ...(f.passengers ?? []), ac?.tailNumber, ac?.makeModel]
           .filter(Boolean)
           .some((v) => v!.toLowerCase().includes(q))
       })
@@ -65,7 +67,7 @@ export function LogbookView({
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search route, aircraft, remarks..."
+            placeholder="Search route, aircraft, people, remarks..."
             className="pl-8"
           />
         </div>
@@ -177,6 +179,7 @@ export function LogbookView({
                       >
                         <Pencil size={14} />
                       </button>
+                      <button onClick={() => onDuplicate(f)} disabled={Boolean(f.voidedAt)} className="rounded-md p-2 text-[var(--text-muted)] hover:bg-[var(--bg-inset)] hover:text-[var(--text)] cursor-pointer" aria-label="Duplicate flight"><Copy size={14}/></button>
                       {!f.voidedAt ? (
                         <button
                           onClick={() => onVoid(f)}

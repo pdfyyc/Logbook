@@ -92,7 +92,13 @@ export function restoreLogbookDocument(candidate: unknown, storage: Storage = lo
   return { document: restored, recoveryBackup }
 }
 
-export function loadFlightDraft(): FlightDraft | undefined { return loadLogbookDocument().document.draft?.value ?? read<FlightDraft | undefined>("logbook:flightDraft", undefined) }
+export function loadFlightDraftMetadata(): LogbookDocument["draft"] | undefined {
+  const documentDraft = loadLogbookDocument().document.draft
+  if (documentDraft) return documentDraft
+  const legacy = read<FlightDraft | undefined>("logbook:flightDraft", undefined)
+  return legacy ? { value: legacy, updatedAt: "" } : undefined
+}
+export function loadFlightDraft(): FlightDraft | undefined { return loadFlightDraftMetadata()?.value }
 export function saveFlightDraftMetadata(draft?: FlightDraft) {
   const current = loadLogbookDocument().document
   const saved = persistLogbookDocument({ ...current, draft: draft ? { value: draft, updatedAt: new Date().toISOString() } : undefined })

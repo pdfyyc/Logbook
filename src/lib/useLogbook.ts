@@ -21,6 +21,7 @@ export function useLogbook() {
   const [aircraft, setAircraft] = useState<Aircraft[]>(loaded.document.aircraft)
   const [flights, setFlights] = useState<Flight[]>(loaded.document.flights)
   const [profile, setProfile] = useState<PilotProfile>(loaded.document.profile)
+  const [uncertainties, setUncertainties] = useState(loaded.document.uncertainties)
   const documentRef = useRef(loaded.document)
   const revisionRef = useRef(loaded.document.revision)
   const [storageWarning, setStorageWarning] = useState(loaded.warning ?? "")
@@ -131,7 +132,7 @@ export function useLogbook() {
     )
   }
 
-  function applyDocument(document: LogbookDocument) { documentRef.current = document; revisionRef.current = document.revision; setAircraft(document.aircraft); setFlights(document.flights); setProfile(document.profile); setMultiTabConflict(false) }
+  function applyDocument(document: LogbookDocument) { documentRef.current = document; revisionRef.current = document.revision; setAircraft(document.aircraft); setFlights(document.flights); setProfile(document.profile); setUncertainties(document.uncertainties); setMultiTabConflict(false) }
 
   function importFlights(imported: ImportedFlight[], resolutions: Record<string, ImportResolution>) {
     const existingByTail = new Map(aircraft.map((a) => [normalizeRegistration(a.tailNumber), a.id]))
@@ -159,6 +160,7 @@ export function useLogbook() {
     aircraft,
     flights,
     profile,
+    uncertainties,
     aircraftById,
     addAircraft,
     updateAircraft,

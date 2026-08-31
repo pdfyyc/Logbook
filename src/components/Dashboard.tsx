@@ -27,6 +27,7 @@ import { Button } from "./ui/Button"
 import { Avatar } from "./ui/Avatar"
 import { LocalConditions } from "./LocalConditions"
 import { LogbookHealthCheck } from "./LogbookHealthCheck"
+import type { MigrationUncertainty } from "../lib/dataModel"
 
 interface Props {
   flights: Flight[]
@@ -35,6 +36,7 @@ interface Props {
   onAddFlight: () => void
   onViewAllFlights: () => void
   onEditFlight: (flight: Flight, suggestion?: string) => void
+  uncertainties?: MigrationUncertainty[]
 }
 
 function formatShortDate(iso: string): string {
@@ -42,7 +44,7 @@ function formatShortDate(iso: string): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
 }
 
-export function Dashboard({ flights, aircraftById, profile, onAddFlight, onViewAllFlights, onEditFlight }: Props) {
+export function Dashboard({ flights, aircraftById, profile, onAddFlight, onViewAllFlights, onEditFlight, uncertainties = [] }: Props) {
   const totals = computeTotals(flights)
   const month = computeMonthTotals(flights)
   const currency = computeCarsCurrency(flights, profile, aircraftById)
@@ -136,7 +138,7 @@ export function Dashboard({ flights, aircraftById, profile, onAddFlight, onViewA
         </div>
       </Card>
 
-      <LogbookHealthCheck flights={flights} aircraftById={aircraftById} onReviewFlight={onEditFlight} />
+      <LogbookHealthCheck flights={flights} aircraftById={aircraftById} uncertainties={uncertainties} onReviewFlight={onEditFlight} />
     </div>
   )
 }

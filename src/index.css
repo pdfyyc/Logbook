@@ -42,6 +42,11 @@ body,
   height: 100%;
 }
 
+html,
+body {
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -64,4 +69,53 @@ button {
 /* Firefox number input arrows */
 input[type="number"] {
   -moz-appearance: textfield;
+}
+
+.print-logbook {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 10mm;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  header,
+  body > #root > div > nav,
+  button,
+  .print\:hidden {
+    display: none !important;
+  }
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  main > * {
+    display: none !important;
+  }
+  main > div:has(.print-logbook) {
+    display: block !important;
+  }
+  main > div:has(.print-logbook) > * {
+    display: none !important;
+  }
+  .print-logbook {
+    display: block !important;
+  }
+  .print-logbook table {
+    break-inside: auto;
+  }
+  .print-logbook thead {
+    display: table-header-group;
+  }
+  .print-logbook tfoot {
+    display: table-footer-group;
+  }
+  .print-logbook tr {
+    break-inside: avoid;
+  }
 }

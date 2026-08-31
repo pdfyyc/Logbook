@@ -1,19 +1,28 @@
-import { BookOpen, Home, Moon, Plane, Sun, UserCircle2 } from "lucide-react"
+import {
+  BarChart3,
+  BookOpen,
+  Home,
+  Moon,
+  Plane,
+  Sun,
+  UserCircle2,
+} from "lucide-react";
 
-export type Tab = "dashboard" | "logbook" | "aircraft" | "profile"
+export type Tab = "dashboard" | "logbook" | "aircraft" | "reports" | "profile";
 
 const tabs: { id: Tab; label: string; icon: typeof Home }[] = [
   { id: "dashboard", label: "Home", icon: Home },
   { id: "logbook", label: "Logbook", icon: BookOpen },
   { id: "aircraft", label: "Aircraft", icon: Plane },
+  { id: "reports", label: "Reports", icon: BarChart3 },
   { id: "profile", label: "Profile", icon: UserCircle2 },
-]
+];
 
 interface Props {
-  active: Tab
-  onChange: (tab: Tab) => void
-  theme: "light" | "dark"
-  onToggleTheme: () => void
+  active: Tab;
+  onChange: (tab: Tab) => void;
+  theme: "light" | "dark";
+  onToggleTheme: () => void;
 }
 
 export function Nav({ active, onChange, theme, onToggleTheme }: Props) {
@@ -59,7 +68,7 @@ export function Nav({ active, onChange, theme, onToggleTheme }: Props) {
 
       <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-[var(--border)] bg-[var(--bg-elevated)]/95 backdrop-blur sm:hidden">
         {tabs.map(({ id, label, icon: Icon }) => {
-          const isActive = active === id
+          const isActive = active === id;
           return (
             <button
               key={id}
@@ -77,9 +86,9 @@ export function Nav({ active, onChange, theme, onToggleTheme }: Props) {
               </span>
               {label}
             </button>
-          )
+          );
         })}
       </nav>
     </>
-  )
+  );
 }

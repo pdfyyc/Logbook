@@ -1,26 +1,37 @@
-import { useMemo, useState } from "react"
-import { Ban, Copy, Download, FileText, History, Pencil, Plus, Search, Upload } from "lucide-react"
-import type { Aircraft, Flight } from "../types"
-import { formatHours } from "../lib/calc"
-import { downloadTextFile, flightsToCsv } from "../lib/csv"
-import { Button } from "./ui/Button"
-import { Card } from "./ui/Card"
-import { Input, Select } from "./ui/Field"
+import { useMemo, useState } from "react";
+import {
+  Ban,
+  Copy,
+  Download,
+  FileText,
+  History,
+  Pencil,
+  Plus,
+  Search,
+  Upload,
+} from "lucide-react";
+import type { Aircraft, Flight } from "../types";
+import { formatHours } from "../lib/calc";
+import { Button } from "./ui/Button";
+import { Card } from "./ui/Card";
+import { Input, Select } from "./ui/Field";
 
 interface Props {
-  flights: Flight[]
-  aircraft: Aircraft[]
-  aircraftById: Map<string, Aircraft>
-  onAdd: () => void
-  onEdit: (flight: Flight) => void
-  onDuplicate: (flight: Flight) => void
-  onVoid: (flight: Flight) => void
-  onExperienceSummary: () => void
-  onImportFile: (file: File) => void
-  onImportJson: (file: File) => void
+  flights: Flight[];
+  aircraft: Aircraft[];
+  aircraftById: Map<string, Aircraft>;
+  onAdd: () => void;
+  onEdit: (flight: Flight) => void;
+  onDuplicate: (flight: Flight) => void;
+  onVoid: (flight: Flight) => void;
+  onExperienceSummary: () => void;
+  onImportFile: (file: File) => void;
+  onImportJson: (file: File) => void;
+  onExportCsv: (filteredFlights: Flight[]) => void;
+  onReviewImports: () => void;
 }
 
-type SortKey = "date" | "totalTime"
+type SortKey = "date" | "totalTime";
 
 export function LogbookView({
   flights,
@@ -33,28 +44,43 @@ export function LogbookView({
   onExperienceSummary,
   onImportFile,
   onImportJson,
+  onExportCsv,
+  onReviewImports,
 }: Props) {
-  const [query, setQuery] = useState("")
-  const [aircraftFilter, setAircraftFilter] = useState("all")
-  const [sortKey, setSortKey] = useState<SortKey>("date")
+  const [query, setQuery] = useState("");
+  const [aircraftFilter, setAircraftFilter] = useState("all");
+  const [sortKey, setSortKey] = useState<SortKey>("date");
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
+    const q = query.trim().toLowerCase();
     return flights
-      .filter((f) => aircraftFilter === "all" || f.aircraftId === aircraftFilter)
+      .filter(
+        (f) => aircraftFilter === "all" || f.aircraftId === aircraftFilter,
+      )
       .filter((f) => {
-        if (!q) return true
-        const ac = aircraftById.get(f.aircraftId)
-        return [f.from, f.to, f.route, f.remarks, f.legalPicName, f.primaryCrewName, f.instructorName, ...(f.passengers ?? []), ac?.tailNumber, ac?.makeModel]
+        if (!q) return true;
+        const ac = aircraftById.get(f.aircraftId);
+        return [
+          f.from,
+          f.to,
+          f.route,
+          f.remarks,
+          f.legalPicName,
+          f.primaryCrewName,
+          f.instructorName,
+          ...(f.passengers ?? []),
+          ac?.tailNumber,
+          ac?.makeModel,
+        ]
           .filter(Boolean)
-          .some((v) => v!.toLowerCase().includes(q))
+          .some((v) => v!.toLowerCase().includes(q));
       })
       .sort((a, b) =>
         sortKey === "date"
           ? b.date.localeCompare(a.date)
           : b.totalTime - a.totalTime,
-      )
-  }, [flights, query, aircraftFilter, sortKey, aircraftById])
+      );
+  }, [flights, query, aircraftFilter, sortKey, aircraftById]);
 
   return (
     <div className="space-y-4">
@@ -71,7 +97,11 @@ export function LogbookView({
             className="pl-8"
           />
         </div>
-        <Select value={aircraftFilter} onChange={(e) => setAircraftFilter(e.target.value)} className="w-auto">
+        <Select
+          value={aircraftFilter}
+          onChange={(e) => setAircraftFilter(e.target.value)}
+          className="w-auto"
+        >
           <option value="all">All aircraft</option>
           {aircraft.map((a) => (
             <option key={a.id} value={a.id}>
@@ -79,7 +109,11 @@ export function LogbookView({
             </option>
           ))}
         </Select>
-        <Select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} className="w-auto">
+        <Select
+          value={sortKey}
+          onChange={(e) => setSortKey(e.target.value as SortKey)}
+          className="w-auto"
+        >
           <option value="date">Sort: date</option>
           <option value="totalTime">Sort: duration</option>
         </Select>
@@ -91,9 +125,9 @@ export function LogbookView({
               accept="application/json"
               className="hidden"
               onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) onImportJson(file)
-                e.target.value = ""
+                const file = e.target.files?.[0];
+                if (file) onImportJson(file);
+                e.target.value = "";
               }}
             />
             <span className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-inset)] px-3.5 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--border)]/40">
@@ -101,14 +135,25 @@ export function LogbookView({
             </span>
           </label>
           <label className="cursor-pointer">
-            <input type="file" accept=".csv,.tsv,.xlsx,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) onImportFile(file); e.target.value = "" }} />
-            <span className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-inset)] px-3.5 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--border)]/40"><Upload size={15} /> Import CSV / Excel</span>
+            <input
+              type="file"
+              accept=".csv,.tsv,.xlsx,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) onImportFile(file);
+                e.target.value = "";
+              }}
+            />
+            <span className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-inset)] px-3.5 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--border)]/40">
+              <Upload size={15} /> Import CSV / Excel
+            </span>
           </label>
-          <Button
-            variant="secondary"
-            onClick={() => downloadTextFile("logbook.csv", flightsToCsv(flights, aircraft), "text/csv")}
-          >
-            <Download size={15} /> CSV
+          <Button variant="secondary" onClick={() => onExportCsv(filtered)}>
+            <Download size={15} /> Export CSV
+          </Button>
+          <Button variant="secondary" onClick={onReviewImports}>
+            Import batches
           </Button>
           <Button variant="secondary" onClick={onExperienceSummary}>
             <FileText size={15} /> Experience summary
@@ -135,30 +180,46 @@ export function LogbookView({
           </thead>
           <tbody>
             {filtered.map((f) => {
-              const ac = aircraftById.get(f.aircraftId)
+              const ac = aircraftById.get(f.aircraftId);
               return (
                 <tr
                   key={f.id}
                   className={`border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg-inset)]/60 ${f.voidedAt ? "opacity-60" : ""}`}
                 >
-                  <td className={`px-3 py-2 whitespace-nowrap text-[var(--text)] ${f.voidedAt ? "line-through" : ""}`}>{f.date}</td>
-                  <td className={`px-3 py-2 whitespace-nowrap text-[var(--text)] ${f.voidedAt ? "line-through" : ""}`}>
+                  <td
+                    className={`px-3 py-2 whitespace-nowrap text-[var(--text)] ${f.voidedAt ? "line-through" : ""}`}
+                  >
+                    {f.date}
+                  </td>
+                  <td
+                    className={`px-3 py-2 whitespace-nowrap text-[var(--text)] ${f.voidedAt ? "line-through" : ""}`}
+                  >
                     {ac?.tailNumber ?? "—"}
                   </td>
-                  <td className={`px-3 py-2 whitespace-nowrap text-[var(--text-muted)] ${f.voidedAt ? "line-through" : ""}`}>
+                  <td
+                    className={`px-3 py-2 whitespace-nowrap text-[var(--text-muted)] ${f.voidedAt ? "line-through" : ""}`}
+                  >
                     {f.from}
                     {f.to ? ` → ${f.to}` : ""}
                   </td>
-                  <td className={`px-3 py-2 text-right font-mono text-[var(--text)] ${f.voidedAt ? "line-through" : ""}`}>
+                  <td
+                    className={`px-3 py-2 text-right font-mono text-[var(--text)] ${f.voidedAt ? "line-through" : ""}`}
+                  >
                     {formatHours(f.totalTime)}
                   </td>
-                  <td className={`px-3 py-2 text-right font-mono text-[var(--text-muted)] ${f.voidedAt ? "line-through" : ""}`}>
+                  <td
+                    className={`px-3 py-2 text-right font-mono text-[var(--text-muted)] ${f.voidedAt ? "line-through" : ""}`}
+                  >
                     {formatHours(f.pic)}
                   </td>
-                  <td className={`px-3 py-2 text-right font-mono text-[var(--text-muted)] ${f.voidedAt ? "line-through" : ""}`}>
+                  <td
+                    className={`px-3 py-2 text-right font-mono text-[var(--text-muted)] ${f.voidedAt ? "line-through" : ""}`}
+                  >
                     {formatHours(f.night)}
                   </td>
-                  <td className={`px-3 py-2 text-right font-mono text-[var(--text-muted)] ${f.voidedAt ? "line-through" : ""}`}>
+                  <td
+                    className={`px-3 py-2 text-right font-mono text-[var(--text-muted)] ${f.voidedAt ? "line-through" : ""}`}
+                  >
                     {f.dayLandings + f.nightLandings}
                   </td>
                   <td className="px-3 py-2">
@@ -179,7 +240,14 @@ export function LogbookView({
                       >
                         <Pencil size={14} />
                       </button>
-                      <button onClick={() => onDuplicate(f)} disabled={Boolean(f.voidedAt)} className="rounded-md p-2 text-[var(--text-muted)] hover:bg-[var(--bg-inset)] hover:text-[var(--text)] cursor-pointer" aria-label="Duplicate flight"><Copy size={14}/></button>
+                      <button
+                        onClick={() => onDuplicate(f)}
+                        disabled={Boolean(f.voidedAt)}
+                        className="rounded-md p-2 text-[var(--text-muted)] hover:bg-[var(--bg-inset)] hover:text-[var(--text)] cursor-pointer"
+                        aria-label="Duplicate flight"
+                      >
+                        <Copy size={14} />
+                      </button>
                       {!f.voidedAt ? (
                         <button
                           onClick={() => onVoid(f)}
@@ -189,21 +257,29 @@ export function LogbookView({
                           <Ban size={14} />
                         </button>
                       ) : (
-                        <span className="text-[10px] font-medium uppercase tracking-wide text-amber-500" title={f.voidReason}>
+                        <span
+                          className="text-[10px] font-medium uppercase tracking-wide text-amber-500"
+                          title={f.voidReason}
+                        >
                           Voided
                         </span>
                       )}
                     </div>
                     {f.voidedAt && (
-                      <p className="mt-1 text-right text-[10px] text-[var(--text-muted)]">{f.voidReason}</p>
+                      <p className="mt-1 text-right text-[10px] text-[var(--text-muted)]">
+                        {f.voidReason}
+                      </p>
                     )}
                   </td>
                 </tr>
-              )
+              );
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-10 text-center text-sm text-[var(--text-muted)]">
+                <td
+                  colSpan={8}
+                  className="px-3 py-10 text-center text-sm text-[var(--text-muted)]"
+                >
                   No flights match your filters.
                 </td>
               </tr>
@@ -212,5 +288,5 @@ export function LogbookView({
         </table>
       </Card>
     </div>
-  )
+  );
 }

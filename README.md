@@ -28,6 +28,47 @@ There is deliberately no mock WingRoster connection: a future adapter must
 obtain authenticated, organization-scoped aircraft from the real service and
 return them through `listSharedAircraft()`. Personal nicknames/defaults remain
 on the local pilot-aircraft relationship and must not mutate shared records.
+
+## Portable import and export
+
+The application uses root document schema version 3. Version 1 and 2 documents
+are migrated without changing existing aircraft, flights, profile data, drafts,
+or migration uncertainties. Version 3 adds only configurable expiry-warning
+thresholds, defaulting to 90 and 30 days.
+
+The portable CSV export is a one-row-per-flight review/interchange format. It
+includes stable flight and aircraft identifiers, aircraft/source text, all
+supported time and operation fields, role and people fields, void status,
+amendment count, and import provenance. Nested amendment snapshots and other
+application state remain authoritative only in the JSON backup.
+
+The importer verifies the application's current portable CSV header and also
+provides an explicit generic CSV/TSV/XLSX column mapper. MyFlightbook and
+ForeFlight profiles are deliberately deferred until sanitized exports with a
+known product/export version can be tested; the UI does not advertise guessed
+compatibility.
+
+## Regulatory intelligence and reports
+
+The Reports workspace uses `src/lib/flightTotals.ts` as the authoritative,
+read-only totals layer. It supports all-time, calendar-year, rolling, and custom
+ranges; role, aircraft-category, aircraft-type, registration, and monthly
+summaries; contributing-flight drill-down; and an original landscape print
+layout. Unknown or historical aircraft remain explicitly unresolved rather than
+being inferred from registration text.
+
+Licence and rating progress rules live in `src/lib/licenseRequirements.ts`,
+separate from React. Each profile carries a concise Transport Canada Standard
+reference and review date. Requirements the stored fields cannot prove remain
+manual verification items. The initial Canadian Multi-Engine Class Rating is
+manual-only because Standard 421.38(3) specifies a flight test but no minimum
+flight-hour threshold.
+
+Currency and expiry calculations remain centralized in `src/lib/calc.ts`. An
+entered official medical or qualification expiry controls over a calculated
+date. These planning tools do not replace current Transport Canada requirements,
+official records, or regulatory interpretation.
+
 - **Light/dark mode**, responsive layout with a native-style bottom tab bar on mobile.
 
 Currency calculations are for flight planning only — always verify against the current text of the CARs before exercising any privilege.
